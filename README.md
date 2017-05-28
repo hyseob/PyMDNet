@@ -3,7 +3,7 @@
 by [Hyeonseob Nam](https://kr.linkedin.com/in/hyeonseob-nam/) and [Bohyung Han](http://cvlab.postech.ac.kr/~bhhan/) at POSTECH
 
 ## Introduction
-PyTorch implementation of MDNet tracker, which is ~2x faster than the original matlab implementation. 
+Python (PyTorch) implementation of MDNet tracker, which is ~2x faster than the original matlab implementation. 
 #### [[Project]](http://cvlab.postech.ac.kr/research/mdnet/) [[Paper]](https://arxiv.org/abs/1510.07945) [[Matlab code]](https://github.com/HyeonseobNam/MDNet)
 
 If you're using this code for your research, please cite:
