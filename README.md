@@ -1,4 +1,4 @@
-# MDNet_pytorch
+# py-MDNet
 
 by [Hyeonseob Nam](https://kr.linkedin.com/in/hyeonseob-nam/) and [Bohyung Han](http://cvlab.postech.ac.kr/~bhhan/) at POSTECH
 
