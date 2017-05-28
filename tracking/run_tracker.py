@@ -198,8 +198,6 @@ def run_mdnet(img_list, init_bbox, gt=None, savefig_dir='', display=False):
                 linewidth=3, edgecolor="#ff0000", zorder=1, fill=False)
         ax.add_patch(rect)
 
-
-
         if display:
             plt.pause(.01)
             plt.draw()
