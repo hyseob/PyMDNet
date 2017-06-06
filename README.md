@@ -32,8 +32,8 @@ If you're using this code for your research, please cite:
    - ```python run_tracker.py -j [json path]```
  
 ### Pretraining
- - Download [vgg-m](http://www.vlfeat.org/matconvnet/models/imagenet-vgg-m.mat) (matlab model) and save to "models/imagenet-vgg-m.mat"
- - Download VOT datasets in "dataset/vot201x"
+ - Download [VGG-M](http://www.vlfeat.org/matconvnet/models/imagenet-vgg-m.mat) (matconvnet model) and save as "models/imagenet-vgg-m.mat"
+ - Download [VOT](http://www.votchallenge.net/) datasets into "dataset/vot201x"
 ``` bash
  cd pretrain
  python prepro_data.py
