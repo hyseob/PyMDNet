@@ -1,9 +1,4 @@
-import sys
-import numpy as np
-from PIL import Image
-
 import torch
-import torch.utils.data as data
 
 from utils import *
 
@@ -38,13 +33,14 @@ class RegionExtractor():
             regions = self.extract_regions(index)
             regions = torch.from_numpy(regions)
             return regions
+
     next = __next__
 
     def extract_regions(self, index):
-        regions = np.zeros((len(index),self.crop_size,self.crop_size,3),dtype='uint8')
+        regions = np.zeros((len(index), self.crop_size, self.crop_size, 3), dtype='uint8')
         for i, sample in enumerate(self.samples[index]):
             regions[i] = crop_image(self.image, sample, self.crop_size, self.padding)
 
-        regions = regions.transpose(0,3,1,2).astype('float32')
+        regions = regions.transpose(0, 3, 1, 2).astype('float32')
         regions = regions - 128.
         return regions

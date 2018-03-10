@@ -6,3 +6,7 @@ modules/*.pyc
 pretrain/*.pyc
 tracking/*.pyc
 models/imagenet-vgg-m.mat
+.idea
+__pycache__
+.DS_Store
+*.pyc
