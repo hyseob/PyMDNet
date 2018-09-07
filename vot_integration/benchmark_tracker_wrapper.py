@@ -1,12 +1,21 @@
-import sys
-import os
+from __future__ import print_function
 
-from PIL import Image
+import os
+import sys
 
 import vot
+from PIL import Image
 from trax.region import Rectangle
 
-sys.path.insert(0, os.path.join(os.getcwd(), '../tracking'))
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
+
+tracking_module_path = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
+                                    '../tracking')
+eprint('Loading tracker from', tracking_module_path)
+sys.path.insert(0, tracking_module_path)
 from tracker import Tracker
 
 handle = vot.VOT("rectangle")
