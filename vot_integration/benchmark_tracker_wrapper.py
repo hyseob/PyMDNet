@@ -27,7 +27,7 @@ if not imagefile:
     sys.exit(0)
 first_frame = Image.open(imagefile).convert('RGB')
 
-mdnet = Tracker(first_frame, (selection.x, selection.y, selection.width, selection.height))
+mdnet = Tracker((selection.x, selection.y, selection.width, selection.height), first_frame)
 
 while True:
     imagefile = handle.frame()

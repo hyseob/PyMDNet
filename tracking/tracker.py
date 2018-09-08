@@ -1,8 +1,14 @@
+import os
+import sys
+
 import numpy as np
 import torch
 from torch import optim as optim
 from torch.autograd import Variable
 
+modules_path = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
+                            '../modules')
+sys.path.insert(0, modules_path)
 from bbreg import BBRegressor
 from data_prov import RegionExtractor
 from model import MDNet, BinaryLoss

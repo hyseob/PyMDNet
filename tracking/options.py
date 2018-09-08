@@ -1,9 +1,11 @@
 from collections import OrderedDict
+import os
 
 opts = OrderedDict()
 opts['use_gpu'] = True
 
-opts['model_path'] = '../models/mdnet_vot-otb.pth'
+opts['model_path'] = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
+                                  '../models/mdnet_vot-otb.pth')
 
 opts['img_size'] = 107
 opts['padding'] = 16
@@ -44,5 +46,5 @@ opts['long_interval'] = 10
 opts['w_decay'] = 0.0005
 opts['momentum'] = 0.9
 opts['grad_clip'] = 10
-opts['lr_mult'] = {'fc6':10}
+opts['lr_mult'] = {'fc6': 10}
 opts['ft_layers'] = ['fc']

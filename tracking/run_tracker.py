@@ -3,11 +3,14 @@ from __future__ import print_function
 import argparse
 import sys
 import time
+import os
 
 import matplotlib.pyplot as plt
 from PIL import Image
 
-sys.path.insert(0, '../modules')
+modules_path = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
+                            '../modules')
+sys.path.insert(0, modules_path)
 from tracker import Tracker
 from bbreg import *
 from gen_config import *
