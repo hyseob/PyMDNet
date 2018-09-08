@@ -141,8 +141,8 @@ class BinaryLoss(nn.Module):
         super(BinaryLoss, self).__init__()
 
     def forward(self, pos_score, neg_score):
-        pos_loss = -F.log_softmax(pos_score)[:, 1]
-        neg_loss = -F.log_softmax(neg_score)[:, 0]
+        pos_loss = -F.log_softmax(pos_score, dim=1)[:, 1]
+        neg_loss = -F.log_softmax(neg_score, dim=1)[:, 0]
 
         loss = pos_loss.sum() + neg_loss.sum()
         return loss
