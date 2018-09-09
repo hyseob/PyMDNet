@@ -2,6 +2,8 @@ from utils import *
 
 
 def gen_samples(generator, bbox, n, overlap_range=None, scale_range=None):
+    assert n > 0
+
     if overlap_range is None and scale_range is None:
         return generator(bbox, n)
 
@@ -28,6 +30,8 @@ def gen_samples(generator, bbox, n, overlap_range=None, scale_range=None):
                 samples = np.concatenate([samples, samples_])
             remain = n - len(samples)
             factor = factor * 2
+        if remain > 0:
+            samples = np.concatenate([samples, generator(bbox, remain)])
 
         return samples
 
@@ -42,7 +46,6 @@ class SampleGenerator():
         self.valid = valid
 
     def __call__(self, bb, n):
-        #
         # bb: target bbox (min_x,min_y,w,h)
         bb = np.array(bb, dtype='float32')
 

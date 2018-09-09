@@ -18,6 +18,9 @@ class RegionExtractor():
 
         self.mean = self.image.mean(0).mean(0).astype('float32')
 
+    def __len__(self):
+        return len(self.samples)
+
     def __iter__(self):
         return self
 
