@@ -25,7 +25,7 @@ If you're using this code for your research, please cite:
 ### Tracking
 ```bash
  cd tracking
- python run_tracker.py -s DragonBaby [-d (display fig)] [-f (save fig)]
+ python otb_demo.py -s DragonBaby [-d (display fig)] [-f (save fig)]
 ```
  - You can provide a sequence configuration in two ways (see tracking/gen_config.py):
    - ```python run_tracker.py -s [seq name]```

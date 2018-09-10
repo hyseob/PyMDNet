@@ -1,19 +1,17 @@
-from __future__ import print_function
-
-import argparse
+import os
 import sys
 import time
-import os
+import numpy as np
 
-import matplotlib.pyplot as plt
 from PIL import Image
+from matplotlib import pyplot as plt
 
 modules_path = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
                             '../modules')
 sys.path.insert(0, modules_path)
+
 from tracker import Tracker
-from bbreg import *
-from gen_config import *
+from utils import overlap_ratio
 
 
 def run_mdnet(img_list, init_bbox, gt=None, savefig_dir='', display=False):
@@ -98,24 +96,3 @@ def run_mdnet(img_list, init_bbox, gt=None, savefig_dir='', display=False):
 
     fps = len(img_list) / spf_total
     return result_bb, fps
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--seq', default='', help='input seq')
-    parser.add_argument('-j', '--json', default='', help='input json')
-    parser.add_argument('-f', '--savefig', action='store_true')
-    parser.add_argument('-d', '--display', action='store_true')
-
-    args = parser.parse_args()
-    assert (args.seq != '' or args.json != '')
-
-    # Generate sequence config
-    img_list, init_bbox, gt, savefig_dir, display, result_path = gen_config(args)
-
-    # Run tracker
-    result_bb, fps = run_mdnet(img_list, init_bbox, gt=gt, savefig_dir=savefig_dir, display=display)
-
-    # Save result
-    res = {'res': result_bb.round().tolist(), 'type': 'rect', 'fps': fps}
-    json.dump(res, open(result_path, 'w'), indent=2)
