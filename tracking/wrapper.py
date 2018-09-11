@@ -4,6 +4,8 @@ import time
 import numpy as np
 
 from PIL import Image
+import matplotlib
+matplotlib.use('agg')
 from matplotlib import pyplot as plt
 
 modules_path = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
