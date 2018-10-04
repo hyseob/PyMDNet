@@ -40,10 +40,9 @@ class Tracker:
 
         # Train bbox regressor
         bbreg_examples = gen_samples(SampleGenerator('uniform', first_frame.size, 0.3, 1.5, 1.1),
-                                     self.target_bbox, opts['n_bbreg'], opts['overlap_bbreg'], opts['scale_bbreg'])
-        assert len(bbreg_examples) > 0
+                                     self.target_bbox, opts['n_bbreg'], opts['overlap_bbreg'], opts['scale_bbreg'],
+                                     force_nonempty=False)
         bbreg_feats = forward_samples(self.model, first_frame, bbreg_examples)
-        assert len(bbreg_feats) > 0
         self.bbreg = BBRegressor(first_frame.size)
         self.bbreg.train(bbreg_feats, bbreg_examples, self.target_bbox)
 

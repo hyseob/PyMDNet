@@ -1,7 +1,7 @@
 from utils import *
 
 
-def gen_samples(generator, bbox, n, overlap_range=None, scale_range=None):
+def gen_samples(generator, bbox, n, overlap_range=None, scale_range=None, force_nonempty=True):
     assert n > 0
 
     if overlap_range is None and scale_range is None:
@@ -30,7 +30,7 @@ def gen_samples(generator, bbox, n, overlap_range=None, scale_range=None):
                 samples = np.concatenate([samples, samples_])
             remain = n - len(samples)
             factor = factor * 2
-        if remain > 0:
+        if force_nonempty and remain > 0:
             samples = np.concatenate([samples, generator(bbox, remain)])
 
         return samples
