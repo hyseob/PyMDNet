@@ -39,8 +39,8 @@ class Tracker:
 
         # Init criterion and optimizer
         self.criterion = BinaryLoss()
-        self.init_optimizer = set_optimizer(self.model, opts['lr_init'])
-        self.update_optimizer = set_optimizer(self.model, opts['lr_update'])
+        self.init_optimizer = self.set_optimizer(opts['lr_init'])
+        self.update_optimizer = self.set_optimizer(opts['lr_update'])
 
         # Train bbox regressor
         self.bbreg = None
@@ -69,7 +69,7 @@ class Tracker:
         self.feat_dim = pos_feats.size(-1)
 
         # Initial training
-        train(self.model, self.criterion, self.init_optimizer, pos_feats, neg_feats, opts['maxiter_init'])
+        self.train(self.criterion, self.init_optimizer, pos_feats, neg_feats, opts['maxiter_init'])
 
         # Init sample generators
         self.sample_generator = SampleGenerator('gaussian', first_frame.size, opts['trans_f'], opts['scale_f'],
@@ -137,13 +137,13 @@ class Tracker:
             nframes = min(opts['n_frames_short'], len(self.pos_feats_all))
             pos_data = torch.stack(self.pos_feats_all[-nframes:], 0).view(-1, self.feat_dim)
             neg_data = torch.stack(self.neg_feats_all, 0).view(-1, self.feat_dim)
-            train(self.model, self.criterion, self.update_optimizer, pos_data, neg_data, opts['maxiter_update'])
+            self.train(self.criterion, self.update_optimizer, pos_data, neg_data, opts['maxiter_update'])
 
         # Long term update
         elif self.frame_idx % opts['long_interval'] == 0:
             pos_data = torch.stack(self.pos_feats_all, 0).view(-1, self.feat_dim)
             neg_data = torch.stack(self.neg_feats_all, 0).view(-1, self.feat_dim)
-            train(self.model, self.criterion, self.update_optimizer, pos_data, neg_data, opts['maxiter_update'])
+            self.train(self.criterion, self.update_optimizer, pos_data, neg_data, opts['maxiter_update'])
 
         return self.bbreg_bbox, target_score
 
@@ -165,86 +165,106 @@ class Tracker:
                 feats = torch.cat((feats, feat.data.clone()), 0)
         return feats
 
-
-def set_optimizer(model, lr_base, lr_mult=opts['lr_mult'], momentum=opts['momentum'], w_decay=opts['w_decay']):
-    params = model.get_learnable_params()
-    param_list = []
-    lr = lr_base
-    for k, p in params.items():
+    def set_optimizer(self, lr_base, lr_mult=opts['lr_mult'], momentum=opts['momentum'],
+                      w_decay=opts['w_decay']):
+        params = self.model.get_learnable_params()
+        param_list = []
         lr = lr_base
-        for l, m in lr_mult.items():
-            if k.startswith(l):
-                lr = lr_base * m
-        param_list.append({'params': [p], 'lr': lr})
-    optimizer = optim.SGD(param_list, lr=lr, momentum=momentum, weight_decay=w_decay)
-    return optimizer
+        for k, p in params.items():
+            lr = lr_base
+            for l, m in lr_mult.items():
+                if k.startswith(l):
+                    lr = lr_base * m
+            param_list.append({'params': [p], 'lr': lr})
+        optimizer = optim.SGD(param_list, lr=lr, momentum=momentum, weight_decay=w_decay)
+        return optimizer
 
+    def train(self, criterion, optimizer, pos_feats, neg_feats, maxiter, in_layer='fc4'):
+        self.model.train()
 
-def train(model, criterion, optimizer, pos_feats, neg_feats, maxiter, in_layer='fc4'):
-    model.train()
+        batch_pos = opts['batch_pos']
+        batch_neg = opts['batch_neg']
+        batch_test = opts['batch_test']
+        batch_neg_cand = max(opts['batch_neg_cand'], batch_neg)
 
-    batch_pos = opts['batch_pos']
-    batch_neg = opts['batch_neg']
-    batch_test = opts['batch_test']
-    batch_neg_cand = max(opts['batch_neg_cand'], batch_neg)
+        pos_idx = np.random.permutation(pos_feats.size(0))
+        neg_idx = np.random.permutation(neg_feats.size(0))
+        while len(pos_idx) < batch_pos * maxiter:
+            pos_idx = np.concatenate([pos_idx, np.random.permutation(pos_feats.size(0))])
+        while len(neg_idx) < batch_neg_cand * maxiter:
+            neg_idx = np.concatenate([neg_idx, np.random.permutation(neg_feats.size(0))])
+        pos_pointer = 0
+        neg_pointer = 0
 
-    pos_idx = np.random.permutation(pos_feats.size(0))
-    neg_idx = np.random.permutation(neg_feats.size(0))
-    while len(pos_idx) < batch_pos * maxiter:
-        pos_idx = np.concatenate([pos_idx, np.random.permutation(pos_feats.size(0))])
-    while len(neg_idx) < batch_neg_cand * maxiter:
-        neg_idx = np.concatenate([neg_idx, np.random.permutation(neg_feats.size(0))])
-    pos_pointer = 0
-    neg_pointer = 0
+        final_loss = 0
 
-    final_loss = 0
+        fe_layers = opts['fe_layers']
+        grad_norm_sum = {}
+        evolved = False
 
-    for iter in range(maxiter):
+        for iter in range(maxiter):
 
-        # select pos idx
-        pos_next = pos_pointer + batch_pos
-        pos_cur_idx = pos_idx[pos_pointer:pos_next]
-        pos_cur_idx = pos_feats.new(pos_cur_idx).long()
-        pos_pointer = pos_next
+            # select pos filter_idx
+            pos_next = pos_pointer + batch_pos
+            pos_cur_idx = pos_idx[pos_pointer:pos_next]
+            pos_cur_idx = pos_feats.new(pos_cur_idx).long()
+            pos_pointer = pos_next
 
-        # select neg idx
-        neg_next = neg_pointer + batch_neg_cand
-        neg_cur_idx = neg_idx[neg_pointer:neg_next]
-        neg_cur_idx = neg_feats.new(neg_cur_idx).long()
-        neg_pointer = neg_next
+            # select neg filter_idx
+            neg_next = neg_pointer + batch_neg_cand
+            neg_cur_idx = neg_idx[neg_pointer:neg_next]
+            neg_cur_idx = neg_feats.new(neg_cur_idx).long()
+            neg_pointer = neg_next
 
-        # create batch
-        batch_pos_feats = Variable(pos_feats.index_select(0, pos_cur_idx))
-        batch_neg_feats = Variable(neg_feats.index_select(0, neg_cur_idx))
+            # create batch
+            batch_pos_feats = Variable(pos_feats.index_select(0, pos_cur_idx))
+            batch_neg_feats = Variable(neg_feats.index_select(0, neg_cur_idx))
 
-        # hard negative mining
-        if batch_neg_cand > batch_neg:
-            model.eval()
-            neg_cand_score = None
-            for start in range(0, batch_neg_cand, batch_test):
-                end = min(start + batch_test, batch_neg_cand)
-                score = model(batch_neg_feats[start:end], in_layer=in_layer)
-                if neg_cand_score is None:
-                    neg_cand_score = score.data[:, 1].clone()
-                else:
-                    neg_cand_score = torch.cat((neg_cand_score, score.data[:, 1].clone()), 0)
+            # hard negative mining
+            if batch_neg_cand > batch_neg:
+                self.model.eval()
+                neg_cand_score = None
+                for start in range(0, batch_neg_cand, batch_test):
+                    end = min(start + batch_test, batch_neg_cand)
+                    score = self.model(batch_neg_feats[start:end], in_layer=in_layer)
+                    if neg_cand_score is None:
+                        neg_cand_score = score.data[:, 1].clone()
+                    else:
+                        neg_cand_score = torch.cat((neg_cand_score, score.data[:, 1].clone()), 0)
 
-            _, top_idx = neg_cand_score.topk(batch_neg)
-            batch_neg_feats = batch_neg_feats.index_select(0, Variable(top_idx))
-            model.train()
+                _, top_idx = neg_cand_score.topk(batch_neg)
+                batch_neg_feats = batch_neg_feats.index_select(0, Variable(top_idx))
+                self.model.train()
 
-        # forward
-        pos_score = model(batch_pos_feats, in_layer=in_layer)
-        neg_score = model(batch_neg_feats, in_layer=in_layer)
+            # forward
+            pos_score = self.model(batch_pos_feats, in_layer=in_layer)
+            neg_score = self.model(batch_neg_feats, in_layer=in_layer)
 
-        # optimize
-        loss = criterion(pos_score, neg_score)
-        model.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm(model.parameters(), opts['grad_clip'])
-        optimizer.step()
+            # optimize
+            loss = criterion(pos_score, neg_score)
+            self.model.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm(self.model.parameters(), opts['grad_clip'])
+            optimizer.step()
 
-        final_loss = loss.data[0]
-        # print("Iter %d, Loss %.4f" % (iter, final_loss))
+            if not evolved:
+                for layer_name in fe_layers:
+                    if layer_name not in grad_norm_sum:
+                        grad_norm_sum[layer_name] = torch.pow(self.model.probe_filters_gradients(layer_name), 2)
+                    else:
+                        grad_norm_sum[layer_name] += torch.pow(self.model.probe_filters_gradients(layer_name), 2)
+                if pos_pointer >= pos_feats.size(0):
+                    grad_ratio_thresh = opts['grad_ratio_thresh']
+                    for layer_name, norm_sum in grad_norm_sum.items():
+                        mean_norm_sum = torch.mean(norm_sum)
+                        filters_to_evolve = filter(lambda filter_idx:
+                                                   norm_sum[filter_idx] < mean_norm_sum * grad_ratio_thresh,
+                                                   range(len(norm_sum)))
+                        for idx in filters_to_evolve:
+                            self.model.evolve_filter(optimizer, layer_name, idx)
+                    evolved = True
 
-    return final_loss
+            final_loss = loss.data[0]
+            # print("Iter %d, Loss %.4f" % (iter, final_loss))
+
+        return final_loss

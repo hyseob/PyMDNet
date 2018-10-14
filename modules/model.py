@@ -65,6 +65,13 @@ class MDNet(nn.Module):
             ('fc5', nn.Sequential(nn.Dropout(0.5),
                                   nn.Linear(512, 512),
                                   nn.ReLU()))]))
+        self.next_layer_names = {
+            'conv1': 'conv2',
+            'conv2': 'conv3',
+            'conv3': 'fc4',
+            'fc4': 'fc5',
+            'fc5': 'fc6_0',
+        }
 
         self.branches = nn.ModuleList([nn.Sequential(nn.Dropout(0.5),
                                                      nn.Linear(512, 2)) for _ in range(K)])
@@ -134,6 +141,28 @@ class MDNet(nn.Module):
             weight, bias = mat_layers[i * 4]['weights'].item()[0]
             self.layers[i][0].weight.data = torch.from_numpy(np.transpose(weight, (3, 2, 0, 1)))
             self.layers[i][0].bias.data = torch.from_numpy(bias[:, 0])
+
+    # def probe_filters_gradients(self, block_idx, layer_idx):
+    #     layer = self.layers[block_idx][layer_idx]
+    #     layer_params = layer.weight
+    #     grad = layer_params.grad
+    #     return torch.norm(grad.view((grad.shape[0], len(grad.view(-1)) / grad.shape[0])), dim=1)
+
+    def probe_filters_gradients(self, layer_name):
+        return self.params[layer_name + '_bias'].data
+
+    def evolve_filter(self, optimizer, layer_name, filter_idx):
+        bias_params = self.params[layer_name + '_bias']
+        weight_params = self.params[layer_name + '_weight']
+        bias_params.data[filter_idx] = 0
+        weight_params.data[filter_idx, ...] = 0
+        optimizer.state[bias_params]['momentum_buffer'][filter_idx] = 0
+        optimizer.state[weight_params]['momentum_buffer'][filter_idx, ...] = 0
+
+        weight_params = self.params[self.next_layer_names[layer_name] + '_weight']
+        weight_params.data[:, filter_idx, ...] = -weight_params.data[:, filter_idx, ...]
+        optimizer.state[weight_params]['momentum_buffer'][:, filter_idx, ...] = \
+            -optimizer.state[weight_params]['momentum_buffer'][:, filter_idx, ...]
 
 
 class BinaryLoss(nn.Module):
