@@ -31,7 +31,8 @@ class Tracker:
         # Init model
         print('Loading model from {}...'.format(opts['model_path']))
         self.model = MDNet(opts['model_path'])
-        if opts['use_gpu'] and gpu >= 0:
+        self.use_gpu = opts['use_gpu'] and gpu >= 0
+        if self.use_gpu:
             torch.cuda.set_device(gpu)
             self.model = self.model.cuda()
         self.model.set_learnable_params(opts['ft_layers'])
@@ -47,7 +48,7 @@ class Tracker:
                                      self.target_bbox, opts['n_bbreg'], opts['overlap_bbreg'], opts['scale_bbreg'],
                                      force_nonempty=False)
         if len(bbreg_examples) > 0:
-            bbreg_feats = forward_samples(self.model, first_frame, bbreg_examples)
+            bbreg_feats = self.forward_samples(first_frame, bbreg_examples)
             self.bbreg = BBRegressor(first_frame.size)
             self.bbreg.train(bbreg_feats, bbreg_examples, self.target_bbox)
 
@@ -63,8 +64,8 @@ class Tracker:
         neg_examples = np.random.permutation(neg_examples)
 
         # Extract pos/neg features
-        pos_feats = forward_samples(self.model, first_frame, pos_examples)
-        neg_feats = forward_samples(self.model, first_frame, neg_examples)
+        pos_feats = self.forward_samples(first_frame, pos_examples)
+        neg_feats = self.forward_samples(first_frame, neg_examples)
         self.feat_dim = pos_feats.size(-1)
 
         # Initial training
@@ -85,7 +86,7 @@ class Tracker:
 
         # Estimate target bbox
         samples = gen_samples(self.sample_generator, self.target_bbox, opts['n_samples'])
-        sample_scores = forward_samples(self.model, image, samples, out_layer='fc6')
+        sample_scores = self.forward_samples(image, samples, out_layer='fc6')
         top_scores, top_idx = sample_scores[:, 1].topk(5)
         top_idx = top_idx.cpu().numpy()
         target_score = top_scores.mean()
@@ -107,7 +108,7 @@ class Tracker:
                 self.bbreg_bbox = self.target_bbox
             else:
                 bbreg_samples = samples[top_idx]
-                bbreg_feats = forward_samples(self.model, image, bbreg_samples)
+                bbreg_feats = self.forward_samples(image, bbreg_samples)
                 bbreg_samples = self.bbreg.predict(bbreg_feats, bbreg_samples)
                 self.bbreg_bbox = bbreg_samples.mean(axis=0)
 
@@ -122,8 +123,8 @@ class Tracker:
                                        opts['overlap_neg_update'])
 
             # Extract pos/neg features
-            pos_feats = forward_samples(self.model, image, pos_examples)
-            neg_feats = forward_samples(self.model, image, neg_examples)
+            pos_feats = self.forward_samples(image, pos_examples)
+            neg_feats = self.forward_samples(image, neg_examples)
             self.pos_feats_all.append(pos_feats)
             self.neg_feats_all.append(neg_feats)
             if len(self.pos_feats_all) > opts['n_frames_long']:
@@ -146,24 +147,23 @@ class Tracker:
 
         return self.bbreg_bbox, target_score
 
+    def forward_samples(self, image, samples, out_layer='conv3'):
+        assert len(samples) > 0
 
-def forward_samples(model, image, samples, out_layer='conv3'):
-    assert len(samples) > 0
+        self.model.eval()
+        extractor = RegionExtractor(image, samples, opts['img_size'], opts['padding'], opts['batch_test'])
 
-    model.eval()
-    extractor = RegionExtractor(image, samples, opts['img_size'], opts['padding'], opts['batch_test'])
-
-    feats = None
-    for i, regions in enumerate(extractor):
-        regions = Variable(regions)
-        if opts['use_gpu']:
-            regions = regions.cuda()
-        feat = model(regions, out_layer=out_layer)
-        if feats is None:
-            feats = feat.data.clone()
-        else:
-            feats = torch.cat((feats, feat.data.clone()), 0)
-    return feats
+        feats = None
+        for i, regions in enumerate(extractor):
+            regions = Variable(regions)
+            if self.use_gpu:
+                regions = regions.cuda()
+            feat = self.model(regions, out_layer=out_layer)
+            if feats is None:
+                feats = feat.data.clone()
+            else:
+                feats = torch.cat((feats, feat.data.clone()), 0)
+        return feats
 
 
 def set_optimizer(model, lr_base, lr_mult=opts['lr_mult'], momentum=opts['momentum'], w_decay=opts['w_decay']):
