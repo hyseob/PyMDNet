@@ -18,7 +18,8 @@ def poly2rec(poly):
 
 
 def gen_config(args):
-    save_home = '../result_fig'
+    savevideo_home = '../result_video'
+    savefig_home = '../result_fig'
     result_home = '../result'
 
     seq_path = args.seq_path
@@ -40,28 +41,42 @@ def gen_config(args):
     result_path = os.path.join(result_dir, 'result.json')
 
     if args.savefig:
-        savefig_dir = os.path.join(save_home, seq_name)
+        savefig_dir = os.path.join(savefig_home, seq_name)
         if not os.path.exists(savefig_dir):
             os.makedirs(savefig_dir)
     else:
         savefig_dir = ''
 
-    return img_list, init_bbox, gt, savefig_dir, args.display, result_path
+    if args.savevideo:
+        savevideo_dir = os.path.join(savevideo_home, seq_name)
+        if not os.path.exists(savevideo_dir):
+            os.makedirs(savevideo_dir)
+    else:
+        savevideo_dir = ''
+
+    return img_list, init_bbox, gt, savefig_dir, savevideo_dir, args.display, result_path, seq_name, args.gpu
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('seq_path', type=str, help='path to a sequence folder in VOT')
     parser.add_argument('-f', '--savefig', action='store_true')
+    parser.add_argument('-v', '--savevideo', action='store_true')
     parser.add_argument('-d', '--display', action='store_true')
+    parser.add_argument('-g', '--gpu', type=str, help='id of GPU to use, -1 for cpu', default='0')
 
     args = parser.parse_args()
 
     # Generate sequence config
-    img_list, init_bbox, gt, savefig_dir, display, result_path = gen_config(args)
+    img_list, init_bbox, gt, savefig_dir, savevideo_dir, display, result_path, seq_name, gpu = gen_config(args)
 
     # Run tracker
-    result_bb, fps = run_mdnet(img_list, init_bbox, gt=gt, savefig_dir=savefig_dir, display=display)
+    result_bb, fps = run_mdnet(img_list, init_bbox, gt=gt,
+                               seq_name=seq_name,
+                               savefig_dir=savefig_dir,
+                               savevideo_dir=savevideo_dir,
+                               display=display,
+                               gpu=gpu)
 
     # Save result
     res = {'res': result_bb.round().tolist(), 'type': 'rect', 'fps': fps}

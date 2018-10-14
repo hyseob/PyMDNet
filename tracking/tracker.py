@@ -15,21 +15,24 @@ from model import MDNet, BinaryLoss
 from options import *
 from sample_generator import gen_samples, SampleGenerator
 
-np.random.seed(123)
-torch.manual_seed(456)
-torch.cuda.manual_seed(789)
+if not opts['random']:
+    np.random.seed(123)
+    torch.manual_seed(456)
+    torch.cuda.manual_seed(789)
 
 
 class Tracker:
-    def __init__(self, init_bbox, first_frame):
+    def __init__(self, init_bbox, first_frame, gpu):
         self.frame_idx = 0
 
         self.target_bbox = np.array(init_bbox)
         self.bbreg_bbox = self.target_bbox
 
         # Init model
+        print('Loading model from {}...'.format(opts['model_path']))
         self.model = MDNet(opts['model_path'])
-        if opts['use_gpu']:
+        if opts['use_gpu'] and gpu >= 0:
+            torch.cuda.set_device(gpu)
             self.model = self.model.cuda()
         self.model.set_learnable_params(opts['ft_layers'])
 
@@ -39,12 +42,14 @@ class Tracker:
         self.update_optimizer = set_optimizer(self.model, opts['lr_update'])
 
         # Train bbox regressor
+        self.bbreg = None
         bbreg_examples = gen_samples(SampleGenerator('uniform', first_frame.size, 0.3, 1.5, 1.1),
                                      self.target_bbox, opts['n_bbreg'], opts['overlap_bbreg'], opts['scale_bbreg'],
                                      force_nonempty=False)
-        bbreg_feats = forward_samples(self.model, first_frame, bbreg_examples)
-        self.bbreg = BBRegressor(first_frame.size)
-        self.bbreg.train(bbreg_feats, bbreg_examples, self.target_bbox)
+        if len(bbreg_examples) > 0:
+            bbreg_feats = forward_samples(self.model, first_frame, bbreg_examples)
+            self.bbreg = BBRegressor(first_frame.size)
+            self.bbreg.train(bbreg_feats, bbreg_examples, self.target_bbox)
 
         # Draw pos/neg samples
         pos_examples = gen_samples(SampleGenerator('gaussian', first_frame.size, 0.1, 1.2),
@@ -98,10 +103,13 @@ class Tracker:
             self.target_bbox = samples[top_idx].mean(axis=0)
 
             # Bbox regression
-            bbreg_samples = samples[top_idx]
-            bbreg_feats = forward_samples(self.model, image, bbreg_samples)
-            bbreg_samples = self.bbreg.predict(bbreg_feats, bbreg_samples)
-            self.bbreg_bbox = bbreg_samples.mean(axis=0)
+            if self.bbreg is None:
+                self.bbreg_bbox = self.target_bbox
+            else:
+                bbreg_samples = samples[top_idx]
+                bbreg_feats = forward_samples(self.model, image, bbreg_samples)
+                bbreg_samples = self.bbreg.predict(bbreg_feats, bbreg_samples)
+                self.bbreg_bbox = bbreg_samples.mean(axis=0)
 
         # Data collect
         if success:
@@ -144,12 +152,14 @@ def forward_samples(model, image, samples, out_layer='conv3'):
 
     model.eval()
     extractor = RegionExtractor(image, samples, opts['img_size'], opts['padding'], opts['batch_test'])
+
+    feats = None
     for i, regions in enumerate(extractor):
         regions = Variable(regions)
         if opts['use_gpu']:
             regions = regions.cuda()
         feat = model(regions, out_layer=out_layer)
-        if i == 0:
+        if feats is None:
             feats = feat.data.clone()
         else:
             feats = torch.cat((feats, feat.data.clone()), 0)
@@ -159,6 +169,7 @@ def forward_samples(model, image, samples, out_layer='conv3'):
 def set_optimizer(model, lr_base, lr_mult=opts['lr_mult'], momentum=opts['momentum'], w_decay=opts['w_decay']):
     params = model.get_learnable_params()
     param_list = []
+    lr = lr_base
     for k, p in params.items():
         lr = lr_base
         for l, m in lr_mult.items():
@@ -186,6 +197,8 @@ def train(model, criterion, optimizer, pos_feats, neg_feats, maxiter, in_layer='
     pos_pointer = 0
     neg_pointer = 0
 
+    final_loss = 0
+
     for iter in range(maxiter):
 
         # select pos idx
@@ -207,10 +220,11 @@ def train(model, criterion, optimizer, pos_feats, neg_feats, maxiter, in_layer='
         # hard negative mining
         if batch_neg_cand > batch_neg:
             model.eval()
+            neg_cand_score = None
             for start in range(0, batch_neg_cand, batch_test):
                 end = min(start + batch_test, batch_neg_cand)
                 score = model(batch_neg_feats[start:end], in_layer=in_layer)
-                if start == 0:
+                if neg_cand_score is None:
                     neg_cand_score = score.data[:, 1].clone()
                 else:
                     neg_cand_score = torch.cat((neg_cand_score, score.data[:, 1].clone()), 0)
@@ -230,4 +244,7 @@ def train(model, criterion, optimizer, pos_feats, neg_feats, maxiter, in_layer='
         torch.nn.utils.clip_grad_norm(model.parameters(), opts['grad_clip'])
         optimizer.step()
 
-        # print "Iter %d, Loss %.4f" % (iter, loss.data[0])
+        final_loss = loss.data[0]
+        # print("Iter %d, Loss %.4f" % (iter, final_loss))
+
+    return final_loss

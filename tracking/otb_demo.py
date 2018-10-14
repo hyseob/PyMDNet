@@ -51,7 +51,7 @@ def gen_config(args):
     else:
         savefig_dir = ''
 
-    return img_list, init_bbox, gt, savefig_dir, args.display, result_path
+    return img_list, init_bbox, gt, savefig_dir, args.display, result_path, seq_name, args.gpu
 
 
 if __name__ == "__main__":
@@ -60,15 +60,18 @@ if __name__ == "__main__":
     parser.add_argument('-j', '--json', default='', help='input json')
     parser.add_argument('-f', '--savefig', action='store_true')
     parser.add_argument('-d', '--display', action='store_true')
+    parser.add_argument('-g', '--gpu', type=str, help='id of GPU to use, -1 for cpu', default='0')
 
     args = parser.parse_args()
     assert (args.seq != '' or args.json != '')
 
     # Generate sequence config
-    img_list, init_bbox, gt, savefig_dir, display, result_path = gen_config(args)
+    img_list, init_bbox, gt, savefig_dir, display, result_path, seq_name, gpu = gen_config(args)
 
     # Run tracker
-    result_bb, fps = run_mdnet(img_list, init_bbox, gt=gt, savefig_dir=savefig_dir, display=display)
+    result_bb, fps = run_mdnet(img_list, init_bbox, gt=gt,
+                               savefig_dir=savefig_dir, display=display, seq_name=seq_name,
+                               gpu=gpu)
 
     # Save result
     res = {'res': result_bb.round().tolist(), 'type': 'rect', 'fps': fps}

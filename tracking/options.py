@@ -1,8 +1,10 @@
-from collections import OrderedDict
 import os
+from collections import OrderedDict
 
 opts = OrderedDict()
 opts['use_gpu'] = True
+
+opts['random'] = False
 
 opts['model_path'] = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
                                   '../models/mdnet_vot-otb.pth')
