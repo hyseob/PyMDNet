@@ -149,12 +149,12 @@ class MDNet(nn.Module):
     #     return torch.norm(grad.view((grad.shape[0], len(grad.view(-1)) / grad.shape[0])), dim=1)
 
     def probe_filters_gradients(self, layer_name):
-        return self.params[layer_name + '_bias'].data
+        return self.params[layer_name + '_bias'].grad.data
 
-    def evolve_filter(self, optimizer, layer_name, filter_idx):
+    def evolve_filter(self, optimizer, layer_name, filter_idx, init_bias):
         bias_params = self.params[layer_name + '_bias']
         weight_params = self.params[layer_name + '_weight']
-        bias_params.data[filter_idx] = 0.1
+        bias_params.data[filter_idx] = init_bias
         weight_params.data[filter_idx, ...] = 0
         optimizer.state[bias_params]['momentum_buffer'][filter_idx] = 0
         optimizer.state[weight_params]['momentum_buffer'][filter_idx, ...] = 0

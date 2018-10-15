@@ -211,7 +211,7 @@ class Tracker:
         final_loss = 0
 
         fe_layers = opts['fe_layers']
-        grad_norm_sum = {}
+        grad_sq_sum = {}
         evolved = False
         filters_evolved = {}
 
@@ -258,8 +258,6 @@ class Tracker:
             self.model.zero_grad()
             loss.backward()
 
-            print(self.model.probe_filters_gradients('fc4')[6])
-
             if evolved:
                 # boost learning rate of evolved filters
                 for layer_name, filter_indices in filters_evolved.items():
@@ -269,21 +267,22 @@ class Tracker:
 
             if to_evolve and not evolved and iter < (maxiter >> 1):
                 for layer_name in fe_layers:
-                    if layer_name not in grad_norm_sum:
-                        grad_norm_sum[layer_name] = torch.pow(self.model.probe_filters_gradients(layer_name), 2)
+                    if layer_name not in grad_sq_sum:
+                        grad_sq_sum[layer_name] = torch.pow(self.model.probe_filters_gradients(layer_name), 2)
                     else:
-                        grad_norm_sum[layer_name] += torch.pow(self.model.probe_filters_gradients(layer_name), 2)
+                        grad_sq_sum[layer_name] += torch.pow(self.model.probe_filters_gradients(layer_name), 2)
 
                 grad_ratio_thresh = opts['grad_ratio_thresh']
-                for layer_name, norm_sum in grad_norm_sum.items():
-                    mean_norm_sum = torch.mean(norm_sum)
+                for layer_name, sq_sum in grad_sq_sum.items():
+                    grad_norm = torch.sqrt(sq_sum) / (iter + 1)
+                    mean_grad_norm = torch.mean(grad_norm)
                     filters_to_evolve = list(filter(lambda filter_idx:
-                                                    norm_sum[filter_idx] < mean_norm_sum * grad_ratio_thresh,
-                                                    range(len(norm_sum))))
+                                                    grad_norm[filter_idx] < mean_grad_norm * grad_ratio_thresh,
+                                                    range(len(sq_sum))))
 
                     if len(filters_to_evolve) > 0:
                         for idx in filters_to_evolve:
-                            self.model.evolve_filter(optimizer, layer_name, idx)
+                            self.model.evolve_filter(optimizer, layer_name, idx, opts['init_bias'])
 
                         if self.verbose:
                             print('Evolved {} filters in {}: {}'.format(len(filters_to_evolve),
