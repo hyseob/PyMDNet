@@ -22,14 +22,18 @@ if not opts['random']:
 
 
 class Tracker:
-    def __init__(self, init_bbox, first_frame, gpu):
+    def __init__(self, init_bbox, first_frame, gpu, verbose=False):
+        self.verbose = verbose
+        self.fe_rec = {}
+
         self.frame_idx = 0
 
         self.target_bbox = np.array(init_bbox)
         self.bbreg_bbox = self.target_bbox
 
         # Init model
-        print('Loading model from {}...'.format(opts['model_path']))
+        if verbose:
+            print('Loading model from {}...'.format(opts['model_path']))
         self.model = MDNet(opts['model_path'])
         self.use_gpu = opts['use_gpu'] and gpu >= 0
         if self.use_gpu:
@@ -262,6 +266,16 @@ class Tracker:
                                                    range(len(norm_sum)))
                         for idx in filters_to_evolve:
                             self.model.evolve_filter(optimizer, layer_name, idx)
+
+                        if self.verbose:
+                            print('Evolved filters in {}: {}'.format(layer_name, filters_to_evolve))
+                            if layer_name not in self.fe_rec:
+                                self.fe_rec[layer_name] = {}
+                            for idx in filters_to_evolve:
+                                if idx not in self.fe_rec[layer_name]:
+                                    self.fe_rec[layer_name][idx] = 1
+                                else:
+                                    self.fe_rec[layer_name][idx] += 1
                     evolved = True
 
             final_loss = loss.data[0]

@@ -64,6 +64,7 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--savevideo', action='store_true')
     parser.add_argument('-d', '--display', action='store_true')
     parser.add_argument('-g', '--gpu', type=str, help='id of GPU to use, -1 for cpu', default='0')
+    parser.add_argument('-v', '--verbose', action='store_false', help='print verbose logs')
 
     args = parser.parse_args()
 
@@ -76,7 +77,8 @@ if __name__ == "__main__":
                                savefig_dir=savefig_dir,
                                savevideo_dir=savevideo_dir,
                                display=display,
-                               gpu=gpu)
+                               gpu=gpu,
+                               verbose=args.verbose)
 
     # Save result
     res = {'res': result_bb.round().tolist(), 'type': 'rect', 'fps': fps}

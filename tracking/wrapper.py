@@ -66,7 +66,8 @@ def run_mdnet(img_list, init_bbox, gt=None,
               savefig_dir='', savevideo_dir='',
               display=False,
               seq_name='unknown',
-              gpu='0'):
+              gpu='0',
+              verbose=False):
     # Init bbox
     target_bbox = np.array(init_bbox)
     result_bb = np.zeros((len(img_list), 4))
@@ -77,7 +78,7 @@ def run_mdnet(img_list, init_bbox, gt=None,
     image = Image.open(img_list[0]).convert('RGB')
 
     # Initialize the tracker
-    tracker = Tracker(init_bbox, image, int(gpu))
+    tracker = Tracker(init_bbox, image, int(gpu), verbose=verbose)
 
     spf_total = time.time() - tic
 
@@ -154,14 +155,14 @@ def run_mdnet(img_list, init_bbox, gt=None,
             if savevideo:
                 video_writer.write(fig2cv2(fig))
 
-        if gt is None:
-            print("Frame %d/%d, Score %.3f, Time %.3f" % \
-                  (i, len(img_list), target_score, spf))
-        else:
+        if gt is not None:
             ratio = overlap_ratio(gt[i], result_bb[i])[0]
             overlap_ratios.append(ratio)
             print("Frame %d/%d, Overlap %.3f, Score %.3f, Time %.3f" %
                   (i, len(img_list), ratio, target_score, spf))
+        else:
+            print("Frame %d/%d, Score %.3f, Time %.3f" % \
+                  (i, len(img_list), target_score, spf))
 
     save_PATH = '../models/latest.pth'
     torch.save(tracker.model.state_dict(), save_PATH)
@@ -175,6 +176,9 @@ def run_mdnet(img_list, init_bbox, gt=None,
         print('Writing overlap ratios to {}'.format(overlap_ratio_fn))
         with open(overlap_ratio_fn, 'w') as f:
             f.write(','.join(map(str, overlap_ratios)))
+
+    if verbose:
+        print('Filter evolution record: {}'.format(tracker.fe_rec))
 
     fps = len(img_list) / spf_total
     return result_bb, fps

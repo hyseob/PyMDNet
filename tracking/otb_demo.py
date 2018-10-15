@@ -61,6 +61,7 @@ if __name__ == "__main__":
     parser.add_argument('-f', '--savefig', action='store_true')
     parser.add_argument('-d', '--display', action='store_true')
     parser.add_argument('-g', '--gpu', type=str, help='id of GPU to use, -1 for cpu', default='0')
+    parser.add_argument('-v', '--verbose', action='store_false', help='print verbose logs')
 
     args = parser.parse_args()
     assert (args.seq != '' or args.json != '')
@@ -71,7 +72,8 @@ if __name__ == "__main__":
     # Run tracker
     result_bb, fps = run_mdnet(img_list, init_bbox, gt=gt,
                                savefig_dir=savefig_dir, display=display, seq_name=seq_name,
-                               gpu=gpu)
+                               gpu=gpu,
+                               verbose=args.verbose)
 
     # Save result
     res = {'res': result_bb.round().tolist(), 'type': 'rect', 'fps': fps}
