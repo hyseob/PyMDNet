@@ -207,7 +207,6 @@ class Tracker:
         evolved = False
 
         for iter in range(maxiter):
-
             # select pos filter_idx
             pos_next = pos_pointer + batch_pos
             pos_cur_idx = pos_idx[pos_pointer:pos_next]
@@ -257,6 +256,8 @@ class Tracker:
                         grad_norm_sum[layer_name] = torch.pow(self.model.probe_filters_gradients(layer_name), 2)
                     else:
                         grad_norm_sum[layer_name] += torch.pow(self.model.probe_filters_gradients(layer_name), 2)
+                if self.verbose:
+                    print(iter, pos_pointer, pos_feats.size(0))
                 if pos_pointer >= pos_feats.size(0):
                     grad_ratio_thresh = opts['grad_ratio_thresh']
                     for layer_name, norm_sum in grad_norm_sum.items():
@@ -268,7 +269,9 @@ class Tracker:
                             self.model.evolve_filter(optimizer, layer_name, idx)
 
                         if self.verbose:
-                            print('Evolved filters in {}: {}'.format(layer_name, filters_to_evolve))
+                            print('Evolved {} filters in {}: {}'.format(len(list(filters_to_evolve)),
+                                                                        layer_name,
+                                                                        filters_to_evolve))
                             if layer_name not in self.fe_rec:
                                 self.fe_rec[layer_name] = {}
                             for idx in filters_to_evolve:
