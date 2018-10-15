@@ -141,13 +141,21 @@ class Tracker:
             nframes = min(opts['n_frames_short'], len(self.pos_feats_all))
             pos_data = torch.stack(self.pos_feats_all[-nframes:], 0).view(-1, self.feat_dim)
             neg_data = torch.stack(self.neg_feats_all, 0).view(-1, self.feat_dim)
-            self.train(self.criterion, self.update_optimizer, pos_data, neg_data, opts['maxiter_update'])
+            final_loss = self.train(self.criterion, self.update_optimizer, pos_data, neg_data,
+                                    opts['maxiter_update'], to_evolve=opts['enable_fe'])
+            while opts['loss_thresh'] != 0 and final_loss >= opts['loss_thresh']:
+                final_loss = self.train(self.criterion, self.update_optimizer, pos_data, neg_data,
+                                        opts['maxiter_update'], to_evolve=False)
 
         # Long term update
         elif self.frame_idx % opts['long_interval'] == 0:
             pos_data = torch.stack(self.pos_feats_all, 0).view(-1, self.feat_dim)
             neg_data = torch.stack(self.neg_feats_all, 0).view(-1, self.feat_dim)
-            self.train(self.criterion, self.update_optimizer, pos_data, neg_data, opts['maxiter_update'])
+            final_loss = self.train(self.criterion, self.update_optimizer, pos_data, neg_data,
+                                    opts['maxiter_update'], to_evolve=opts['enable_fe'])
+            while opts['loss_thresh'] != 0 and final_loss >= opts['loss_thresh']:
+                final_loss = self.train(self.criterion, self.update_optimizer, pos_data, neg_data,
+                                        opts['maxiter_update'], to_evolve=False)
 
         return self.bbreg_bbox, target_score
 
@@ -183,7 +191,7 @@ class Tracker:
         optimizer = optim.SGD(param_list, lr=lr, momentum=momentum, weight_decay=w_decay)
         return optimizer
 
-    def train(self, criterion, optimizer, pos_feats, neg_feats, maxiter, in_layer='fc4'):
+    def train(self, criterion, optimizer, pos_feats, neg_feats, maxiter, in_layer='fc4', to_evolve=True):
         self.model.train()
 
         batch_pos = opts['batch_pos']
@@ -207,6 +215,7 @@ class Tracker:
         evolved = False
         filters_evolved = {}
 
+        iter = 0
         for iter in range(maxiter):
             # select pos filter_idx
             pos_next = pos_pointer + batch_pos
@@ -248,6 +257,9 @@ class Tracker:
             loss = criterion(pos_score, neg_score)
             self.model.zero_grad()
             loss.backward()
+
+            print(self.model.probe_filters_gradients('fc4')[6])
+
             if evolved:
                 # boost learning rate of evolved filters
                 for layer_name, filter_indices in filters_evolved.items():
@@ -255,7 +267,7 @@ class Tracker:
             torch.nn.utils.clip_grad_norm(self.model.parameters(), opts['grad_clip'])
             optimizer.step()
 
-            if not evolved and iter < (maxiter >> 1):
+            if to_evolve and not evolved and iter < (maxiter >> 1):
                 for layer_name in fe_layers:
                     if layer_name not in grad_norm_sum:
                         grad_norm_sum[layer_name] = torch.pow(self.model.probe_filters_gradients(layer_name), 2)

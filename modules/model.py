@@ -154,7 +154,7 @@ class MDNet(nn.Module):
     def evolve_filter(self, optimizer, layer_name, filter_idx):
         bias_params = self.params[layer_name + '_bias']
         weight_params = self.params[layer_name + '_weight']
-        bias_params.data[filter_idx] = 0
+        bias_params.data[filter_idx] = 0.1
         weight_params.data[filter_idx, ...] = 0
         optimizer.state[bias_params]['momentum_buffer'][filter_idx] = 0
         optimizer.state[weight_params]['momentum_buffer'][filter_idx, ...] = 0

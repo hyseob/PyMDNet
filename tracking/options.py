@@ -51,7 +51,9 @@ opts['grad_clip'] = 10
 opts['lr_mult'] = {'fc6': 10}
 opts['ft_layers'] = ['fc']
 
-# Filter evolution option.
+# Filter evolution options.
+opts['enable_fe'] = True
 opts['fe_layers'] = ['fc4', 'fc5']
 opts['grad_ratio_thresh'] = 0.01
 opts['lr_boost'] = 10
+opts['loss_thresh'] = 0.01
