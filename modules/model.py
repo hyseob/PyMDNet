@@ -164,6 +164,12 @@ class MDNet(nn.Module):
         optimizer.state[weight_params]['momentum_buffer'][:, filter_idx, ...] = \
             -optimizer.state[weight_params]['momentum_buffer'][:, filter_idx, ...]
 
+    def boost_gradients(self, layer_name, filter_indices, rate):
+        bias_params = self.params[layer_name + '_bias']
+        weight_params = self.params[layer_name + '_weight']
+        bias_params.grad[filter_indices] *= rate
+        weight_params.grad[filter_indices, ...] *= rate
+
 
 class BinaryLoss(nn.Module):
     def __init__(self):

@@ -205,6 +205,7 @@ class Tracker:
         fe_layers = opts['fe_layers']
         grad_norm_sum = {}
         evolved = False
+        filters_evolved = {}
 
         for iter in range(maxiter):
             # select pos filter_idx
@@ -247,6 +248,10 @@ class Tracker:
             loss = criterion(pos_score, neg_score)
             self.model.zero_grad()
             loss.backward()
+            if evolved:
+                # boost learning rate of evolved filters
+                for layer_name, filter_indices in filters_evolved.items():
+                    self.model.boost_gradients(layer_name, filter_indices, opts['lr_boost'])
             torch.nn.utils.clip_grad_norm(self.model.parameters(), opts['grad_clip'])
             optimizer.step()
 
@@ -280,6 +285,7 @@ class Tracker:
                                 else:
                                     self.fe_rec[layer_name][idx] += 1
 
+                        filters_evolved[layer_name] = filters_to_evolve
                         evolved = True
 
             final_loss = loss.data[0]

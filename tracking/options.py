@@ -54,3 +54,4 @@ opts['ft_layers'] = ['fc']
 # Filter evolution option.
 opts['fe_layers'] = ['fc4', 'fc5']
 opts['grad_ratio_thresh'] = 0.01
+opts['lr_boost'] = 10
