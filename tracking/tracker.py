@@ -250,26 +250,26 @@ class Tracker:
             torch.nn.utils.clip_grad_norm(self.model.parameters(), opts['grad_clip'])
             optimizer.step()
 
-            if not evolved:
+            if not evolved and iter < (maxiter >> 1):
                 for layer_name in fe_layers:
                     if layer_name not in grad_norm_sum:
                         grad_norm_sum[layer_name] = torch.pow(self.model.probe_filters_gradients(layer_name), 2)
                     else:
                         grad_norm_sum[layer_name] += torch.pow(self.model.probe_filters_gradients(layer_name), 2)
-                if self.verbose:
-                    print(iter, pos_pointer, pos_feats.size(0))
-                if pos_pointer >= pos_feats.size(0):
-                    grad_ratio_thresh = opts['grad_ratio_thresh']
-                    for layer_name, norm_sum in grad_norm_sum.items():
-                        mean_norm_sum = torch.mean(norm_sum)
-                        filters_to_evolve = filter(lambda filter_idx:
-                                                   norm_sum[filter_idx] < mean_norm_sum * grad_ratio_thresh,
-                                                   range(len(norm_sum)))
+
+                grad_ratio_thresh = opts['grad_ratio_thresh']
+                for layer_name, norm_sum in grad_norm_sum.items():
+                    mean_norm_sum = torch.mean(norm_sum)
+                    filters_to_evolve = list(filter(lambda filter_idx:
+                                                    norm_sum[filter_idx] < mean_norm_sum * grad_ratio_thresh,
+                                                    range(len(norm_sum))))
+
+                    if len(filters_to_evolve) > 0:
                         for idx in filters_to_evolve:
                             self.model.evolve_filter(optimizer, layer_name, idx)
 
                         if self.verbose:
-                            print('Evolved {} filters in {}: {}'.format(len(list(filters_to_evolve)),
+                            print('Evolved {} filters in {}: {}'.format(len(filters_to_evolve),
                                                                         layer_name,
                                                                         filters_to_evolve))
                             if layer_name not in self.fe_rec:
@@ -279,7 +279,8 @@ class Tracker:
                                     self.fe_rec[layer_name][idx] = 1
                                 else:
                                     self.fe_rec[layer_name][idx] += 1
-                    evolved = True
+
+                        evolved = True
 
             final_loss = loss.data[0]
             # print("Iter %d, Loss %.4f" % (iter, final_loss))
