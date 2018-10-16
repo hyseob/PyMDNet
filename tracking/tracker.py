@@ -234,6 +234,8 @@ class Tracker:
         evolved = False
         filters_evolved = {}
 
+        lr_boost = opts['lr_boost']
+
         for iter in range(maxiter):
             # select pos filter_idx
             pos_next = pos_pointer + batch_pos
@@ -279,7 +281,9 @@ class Tracker:
             if evolved:
                 # boost learning rate of evolved filters
                 for layer_name, filter_indices in filters_evolved.items():
-                    self.model.boost_gradients(layer_name, filter_indices, opts['lr_boost'])
+                    self.model.boost_gradients(layer_name, filter_indices, lr_boost)
+                if lr_boost > 1:
+                    lr_boost /= 2
             torch.nn.utils.clip_grad_norm(self.model.parameters(), opts['grad_clip'])
             optimizer.step()
 
