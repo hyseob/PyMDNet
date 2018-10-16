@@ -283,7 +283,7 @@ class Tracker:
                 for layer_name, filter_indices in filters_evolved.items():
                     self.model.boost_gradients(layer_name, filter_indices, lr_boost)
                 if lr_boost > 1:
-                    lr_boost /= 2
+                    lr_boost *= 0.9
             torch.nn.utils.clip_grad_norm(self.model.parameters(), opts['grad_clip'])
             optimizer.step()
 
@@ -303,8 +303,9 @@ class Tracker:
                                                     range(len(filters_in_layer))))
 
                     if len(filters_to_evolve) > 0:
+                        self.model.evolve_filters(optimizer, layer_name, filters_to_evolve, opts['init_bias'])
+
                         for idx in filters_to_evolve:
-                            self.model.evolve_filter(optimizer, layer_name, idx, opts['init_bias'])
                             filters_in_layer[idx].report_evolution()
 
                         if self.verbose:

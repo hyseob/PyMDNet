@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
+import torch.distributions as tdist
 
 
 def append_params(params, module, prefix):
@@ -155,18 +156,30 @@ class MDNet(nn.Module):
         weights = self.params[layer_name + '_weight'].data
         return torch.norm(weights.view((weights.shape[0], len(weights.view(-1)) / weights.shape[0])), dim=1)
 
-    def evolve_filter(self, optimizer, layer_name, filter_idx, init_bias):
+    def evolve_filters(self, optimizer, layer_name, filters_to_evolve, init_bias):
         bias_params = self.params[layer_name + '_bias']
         weight_params = self.params[layer_name + '_weight']
-        bias_params.data[filter_idx] = init_bias
-        weight_params.data[filter_idx, ...] = 0
-        optimizer.state[bias_params]['momentum_buffer'][filter_idx] = 0
-        optimizer.state[weight_params]['momentum_buffer'][filter_idx, ...] = 0
+        bias_params.data[filters_to_evolve] = init_bias
+        weight_params.data[filters_to_evolve, ...] = 0
+        optimizer.state[bias_params]['momentum_buffer'][filters_to_evolve] = 0
+        optimizer.state[weight_params]['momentum_buffer'][filters_to_evolve, ...] = 0
 
+        # Set the weights of units following the evolved filters to have the same distribution as others.
+        filters_not_to_evolve = list(set(range(len(bias_params))).difference(set(filters_to_evolve)))
         weight_params = self.params[self.next_layer_names[layer_name] + '_weight']
-        weight_params.data[:, filter_idx, ...] = -weight_params.data[:, filter_idx, ...]
-        optimizer.state[weight_params]['momentum_buffer'][:, filter_idx, ...] = \
-            -optimizer.state[weight_params]['momentum_buffer'][:, filter_idx, ...]
+        weights_not_evolved = weight_params.data[:, filters_not_to_evolve, ...].view(weight_params.shape[0], -1)
+        mean = torch.mean(weights_not_evolved, dim=1)
+        std = torch.std(weights_not_evolved, dim=1)
+        dest_shape = weight_params.data[:, filters_to_evolve, ...].shape
+        num_params_per_filter = int(np.prod(dest_shape[1:]))
+        mean_tensor = mean.unsqueeze(1).repeat(1, num_params_per_filter).view(dest_shape)
+        std_tensor = std.unsqueeze(1).repeat(1, num_params_per_filter).view(dest_shape)
+        rand_weights = tdist.Normal(mean_tensor, std_tensor).sample()
+        if weight_params.data.is_cuda:
+            rand_weights = rand_weights.cuda()
+        weight_params.data[:, filters_to_evolve, ...] = rand_weights
+        # Clear the momentum.
+        optimizer.state[weight_params]['momentum_buffer'][:, filters_to_evolve, ...] = 0
 
     def boost_gradients(self, layer_name, filter_indices, rate):
         bias_params = self.params[layer_name + '_bias']
