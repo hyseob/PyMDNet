@@ -30,9 +30,9 @@ class FilterMeta:
     def gradient_norm(self):
         return self.gradient_sq_cnt and np.sqrt(self.gradient_sq_sum) / self.gradient_sq_cnt
 
-    def report_gradient(self, grad):
+    def report_gradient_sq(self, grad_sq):
         self.gradient_sq_cnt += 1
-        self.gradient_sq_sum += grad * grad
+        self.gradient_sq_sum += grad_sq
 
     def report_evolution(self):
         self.evolution_cnt += 1
@@ -285,13 +285,13 @@ class Tracker:
 
             if to_evolve and not evolved and iter < (maxiter >> 2):
                 for layer_name in fe_layers:
-                    gradients = self.model.probe_filters_gradients(layer_name)
+                    gradients_sq = torch.pow(self.model.probe_filters_gradients(layer_name), 2).cpu()
                     if layer_name not in self.filters_meta:
-                        self.filters_meta[layer_name] = [FilterMeta() for _ in range(len(gradients))]
+                        self.filters_meta[layer_name] = [FilterMeta() for _ in range(len(gradients_sq))]
                     filters_in_layer = self.filters_meta[layer_name]
                     gradient_norm_sum = 0
-                    for idx, gradient in enumerate(gradients):
-                        filters_in_layer[idx].report_gradient(gradient)
+                    for idx, gradient_sq in enumerate(gradients_sq):
+                        filters_in_layer[idx].report_gradient_sq(gradient_sq)
                         gradient_norm_sum += filters_in_layer[idx].gradient_norm()
                     mean_gradient_norm = gradient_norm_sum / len(filters_in_layer)
                     filters_to_evolve = list(filter(lambda filter_idx:

@@ -21,6 +21,7 @@ sys.path.insert(0, modules_path)
 
 from tracker import Tracker
 from utils import overlap_ratio
+from options import *
 
 
 def fig2data(fig):
@@ -178,8 +179,27 @@ def run_mdnet(img_list, init_bbox, gt=None,
             f.write(','.join(map(str, overlap_ratios)))
 
     if verbose:
-        # print('Filter evolution record: {}'.format(tracker.filters_meta))
-        print('Average weights of filters with/without evolution: {}/{}')
+        for layer_name in opts['fe_layers']:
+            weight_norms = tracker.model.probe_filter_weight_norms(layer_name)
+
+            weight_norm_sum_evolved = 0
+            weight_norm_sum_not_evolved = 0
+            filter_evolved_cnt = 0
+            filter_not_evolved_cnt = 0
+
+            for idx, filter_meta in enumerate(tracker.filters_meta[layer_name]):
+                if filter_meta.evolution_cnt > 0:
+                    weight_norm_sum_evolved += weight_norms[idx]
+                    filter_evolved_cnt += 1
+                else:
+                    weight_norm_sum_not_evolved += weight_norms[idx]
+                    filter_not_evolved_cnt += 1
+
+            print('Average weights of {} filters with/without evolution: {}/{}'.format(
+                layer_name,
+                filter_evolved_cnt and weight_norm_sum_evolved / filter_evolved_cnt,
+                filter_not_evolved_cnt and weight_norm_sum_not_evolved / filter_not_evolved_cnt
+            ))
 
     fps = len(img_list) / spf_total
     return result_bb, fps
