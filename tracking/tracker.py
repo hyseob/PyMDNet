@@ -21,10 +21,29 @@ if not opts['random']:
     torch.cuda.manual_seed(789)
 
 
+class FilterMeta:
+    def __init__(self):
+        self.evolution_cnt = 0
+        self.gradient_sq_sum = 0
+        self.gradient_sq_cnt = 0
+
+    def gradient_norm(self):
+        return self.gradient_sq_cnt and np.sqrt(self.gradient_sq_sum) / self.gradient_sq_cnt
+
+    def report_gradient(self, grad):
+        self.gradient_sq_cnt += 1
+        self.gradient_sq_sum += grad * grad
+
+    def report_evolution(self):
+        self.evolution_cnt += 1
+        self.gradient_sq_sum = 0
+        self.gradient_sq_cnt = 0
+
+
 class Tracker:
     def __init__(self, init_bbox, first_frame, gpu, verbose=False):
         self.verbose = verbose
-        self.fe_rec = {}
+        self.filters_meta = {}
 
         self.frame_idx = 0
 
@@ -211,11 +230,10 @@ class Tracker:
         final_loss = 0
 
         fe_layers = opts['fe_layers']
-        grad_sq_sum = {}
+        grad_ratio_thresh = opts['grad_ratio_thresh']
         evolved = False
         filters_evolved = {}
 
-        iter = 0
         for iter in range(maxiter):
             # select pos filter_idx
             pos_next = pos_pointer + batch_pos
@@ -265,36 +283,30 @@ class Tracker:
             torch.nn.utils.clip_grad_norm(self.model.parameters(), opts['grad_clip'])
             optimizer.step()
 
-            if to_evolve and not evolved and iter < (maxiter >> 1):
+            if to_evolve and not evolved and iter < (maxiter >> 2):
                 for layer_name in fe_layers:
-                    if layer_name not in grad_sq_sum:
-                        grad_sq_sum[layer_name] = torch.pow(self.model.probe_filters_gradients(layer_name), 2)
-                    else:
-                        grad_sq_sum[layer_name] += torch.pow(self.model.probe_filters_gradients(layer_name), 2)
-
-                grad_ratio_thresh = opts['grad_ratio_thresh']
-                for layer_name, sq_sum in grad_sq_sum.items():
-                    grad_norm = torch.sqrt(sq_sum) / (iter + 1)
-                    mean_grad_norm = torch.mean(grad_norm)
+                    gradients = self.model.probe_filters_gradients(layer_name)
+                    if layer_name not in self.filters_meta:
+                        self.filters_meta[layer_name] = [FilterMeta() for _ in range(len(gradients))]
+                    filters_in_layer = self.filters_meta[layer_name]
+                    gradient_norm_sum = 0
+                    for idx, gradient in enumerate(gradients):
+                        filters_in_layer[idx].report_gradient(gradient)
+                        gradient_norm_sum += filters_in_layer[idx].gradient_norm()
+                    mean_gradient_norm = gradient_norm_sum / len(filters_in_layer)
                     filters_to_evolve = list(filter(lambda filter_idx:
-                                                    grad_norm[filter_idx] < mean_grad_norm * grad_ratio_thresh,
-                                                    range(len(sq_sum))))
+                                                    filters_in_layer[filter_idx].gradient_norm() < mean_gradient_norm * grad_ratio_thresh,
+                                                    range(len(filters_in_layer))))
 
                     if len(filters_to_evolve) > 0:
                         for idx in filters_to_evolve:
                             self.model.evolve_filter(optimizer, layer_name, idx, opts['init_bias'])
+                            filters_in_layer[idx].report_evolution()
 
                         if self.verbose:
                             print('Evolved {} filters in {}: {}'.format(len(filters_to_evolve),
                                                                         layer_name,
                                                                         filters_to_evolve))
-                            if layer_name not in self.fe_rec:
-                                self.fe_rec[layer_name] = {}
-                            for idx in filters_to_evolve:
-                                if idx not in self.fe_rec[layer_name]:
-                                    self.fe_rec[layer_name][idx] = 1
-                                else:
-                                    self.fe_rec[layer_name][idx] += 1
 
                         filters_evolved[layer_name] = filters_to_evolve
                         evolved = True

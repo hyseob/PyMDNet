@@ -1,19 +1,19 @@
 import os
 import sys
 import time
-import numpy as np
 
-from PIL import Image
 import matplotlib
+import numpy as np
+from PIL import Image
 
 matplotlib.use('agg')
 from matplotlib import pyplot as plt
 import cv2
 import torch
+
 modules_path = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
                             '../modules')
 sys.path.insert(0, modules_path)
-from model import MDNet
 
 modules_path = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
                             '../modules')
@@ -178,7 +178,8 @@ def run_mdnet(img_list, init_bbox, gt=None,
             f.write(','.join(map(str, overlap_ratios)))
 
     if verbose:
-        print('Filter evolution record: {}'.format(tracker.fe_rec))
+        # print('Filter evolution record: {}'.format(tracker.filters_meta))
+        print('Average weights of filters with/without evolution: {}/{}')
 
     fps = len(img_list) / spf_total
     return result_bb, fps
