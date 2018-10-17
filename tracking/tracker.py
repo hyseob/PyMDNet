@@ -92,7 +92,11 @@ class Tracker:
         self.feat_dim = pos_feats.size(-1)
 
         # Initial training
-        self.train(self.criterion, self.init_optimizer, pos_feats, neg_feats, opts['maxiter_init'])
+        final_loss = self.train(self.criterion, self.init_optimizer, pos_feats, neg_feats,
+                                opts['maxiter_init'], to_evolve=opts['enable_fe'])
+        while opts['loss_thresh'] != 0 and final_loss >= opts['loss_thresh']:
+            final_loss = self.train(self.criterion, self.init_optimizer, pos_feats, neg_feats,
+                                    opts['maxiter_init'], to_evolve=False)
 
         # Init sample generators
         self.sample_generator = SampleGenerator('gaussian', first_frame.size, opts['trans_f'], opts['scale_f'],
@@ -299,7 +303,8 @@ class Tracker:
                         gradient_norm_sum += filters_in_layer[idx].gradient_norm()
                     mean_gradient_norm = gradient_norm_sum / len(filters_in_layer)
                     filters_to_evolve = list(filter(lambda filter_idx:
-                                                    filters_in_layer[filter_idx].gradient_norm() < mean_gradient_norm * grad_ratio_thresh,
+                                                    filters_in_layer[
+                                                        filter_idx].gradient_norm() < mean_gradient_norm * grad_ratio_thresh,
                                                     range(len(filters_in_layer))))
 
                     if len(filters_to_evolve) > 0:
