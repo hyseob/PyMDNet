@@ -291,21 +291,26 @@ class Tracker:
             torch.nn.utils.clip_grad_norm(self.model.parameters(), opts['grad_clip'])
             optimizer.step()
 
+            for layer_name in fe_layers:
+                gradients_sq = torch.pow(self.model.probe_filters_gradients(layer_name), 2).cpu()
+                if layer_name not in self.filters_meta:
+                    self.filters_meta[layer_name] = [FilterMeta() for _ in range(len(gradients_sq))]
+                filters_in_layer = self.filters_meta[layer_name]
+                for idx, gradient_sq in enumerate(gradients_sq):
+                    filters_in_layer[idx].report_gradient_sq(gradient_sq)
+
             if to_evolve and not evolved and iter < (maxiter >> 2):
                 for layer_name in fe_layers:
-                    gradients_sq = torch.pow(self.model.probe_filters_gradients(layer_name), 2).cpu()
-                    if layer_name not in self.filters_meta:
-                        self.filters_meta[layer_name] = [FilterMeta() for _ in range(len(gradients_sq))]
                     filters_in_layer = self.filters_meta[layer_name]
                     gradient_norm_sum = 0
-                    for idx, gradient_sq in enumerate(gradients_sq):
-                        filters_in_layer[idx].report_gradient_sq(gradient_sq)
-                        gradient_norm_sum += filters_in_layer[idx].gradient_norm()
+                    for filter_meta in filters_in_layer:
+                        gradient_norm_sum += filter_meta.gradient_norm()
                     mean_gradient_norm = gradient_norm_sum / len(filters_in_layer)
-                    filters_to_evolve = list(filter(lambda filter_idx:
-                                                    filters_in_layer[
-                                                        filter_idx].gradient_norm() < mean_gradient_norm * grad_ratio_thresh,
-                                                    range(len(filters_in_layer))))
+                    filters_to_evolve = list(
+                        filter(lambda filter_idx:
+                               filters_in_layer[filter_idx].gradient_norm() < mean_gradient_norm * grad_ratio_thresh,
+                               range(len(filters_in_layer)))
+                    )
 
                     if len(filters_to_evolve) > 0:
                         self.model.evolve_filters(optimizer, layer_name, filters_to_evolve, opts['init_bias'])
