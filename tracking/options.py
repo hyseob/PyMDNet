@@ -58,3 +58,4 @@ opts['grad_ratio_thresh'] = 0.01
 opts['lr_boost'] = 4096
 opts['loss_thresh'] = 0
 opts['init_bias'] = 0.00000001
+opts['grad_dampen_factor'] = 0.9

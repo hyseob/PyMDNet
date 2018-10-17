@@ -152,6 +152,9 @@ class MDNet(nn.Module):
     def probe_filters_gradients(self, layer_name):
         return self.params[layer_name + '_bias'].grad.data
 
+    def get_num_filters(self, layer_name):
+        return self.params[layer_name + '_bias'].shape[0]
+
     def probe_filter_weight_norms(self, layer_name):
         weights = self.params[layer_name + '_weight'].data
         return torch.norm(weights.view((weights.shape[0], len(weights.view(-1)) / weights.shape[0])), dim=1)

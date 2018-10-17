@@ -24,20 +24,24 @@ if not opts['random']:
 class FilterMeta:
     def __init__(self):
         self.evolution_cnt = 0
-        self.gradient_sq_sum = 0
-        self.gradient_sq_cnt = 0
+        self.gradient_sq_acc = 0
+        self.gradient_sq_potential = 0
 
     def gradient_norm(self):
-        return self.gradient_sq_cnt and np.sqrt(self.gradient_sq_sum) / self.gradient_sq_cnt
+        return self.gradient_sq_potential and np.sqrt(self.gradient_sq_acc) / self.gradient_sq_potential
 
     def report_gradient_sq(self, grad_sq):
-        self.gradient_sq_cnt += 1
-        self.gradient_sq_sum += grad_sq
+        self.gradient_sq_potential += 1
+        self.gradient_sq_acc += grad_sq
 
     def report_evolution(self):
         self.evolution_cnt += 1
-        self.gradient_sq_sum = 0
-        self.gradient_sq_cnt = 0
+        self.gradient_sq_acc = 0
+        self.gradient_sq_potential = 0
+
+    def dampen_gradient_rec(self, factor):
+        self.gradient_sq_potential *= factor
+        self.gradient_sq_potential *= factor
 
 
 class Tracker:
@@ -238,6 +242,14 @@ class Tracker:
         evolved = False
         filters_evolved = {}
 
+        # dampen previous recorded gradients
+        dampen_factor = opts['grad_dampen_factor']
+        for layer_name in fe_layers:
+            if layer_name not in self.filters_meta:
+                self.filters_meta[layer_name] = [FilterMeta() for _ in range(self.model.get_num_filters(layer_name))]
+            for filter_meta in self.filters_meta[layer_name]:
+                filter_meta.dampen_gradient_rec(dampen_factor)
+
         lr_boost = opts['lr_boost']
 
         for iter in range(maxiter):
@@ -285,8 +297,6 @@ class Tracker:
             # record gradients
             for layer_name in fe_layers:
                 gradients_sq = torch.pow(self.model.probe_filters_gradients(layer_name), 2).cpu()
-                if layer_name not in self.filters_meta:
-                    self.filters_meta[layer_name] = [FilterMeta() for _ in range(len(gradients_sq))]
                 filters_in_layer = self.filters_meta[layer_name]
                 for idx, gradient_sq in enumerate(gradients_sq):
                     filters_in_layer[idx].report_gradient_sq(gradient_sq)
