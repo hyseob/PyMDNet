@@ -277,20 +277,12 @@ class Tracker:
             pos_score = self.model(batch_pos_feats, in_layer=in_layer)
             neg_score = self.model(batch_neg_feats, in_layer=in_layer)
 
-            # optimize
+            # compute gradients
             loss = criterion(pos_score, neg_score)
             self.model.zero_grad()
             loss.backward()
 
-            if evolved:
-                # boost learning rate of evolved filters
-                for layer_name, filter_indices in filters_evolved.items():
-                    self.model.boost_gradients(layer_name, filter_indices, lr_boost)
-                if lr_boost > 1:
-                    lr_boost *= 0.9
-            torch.nn.utils.clip_grad_norm(self.model.parameters(), opts['grad_clip'])
-            optimizer.step()
-
+            # record gradients
             for layer_name in fe_layers:
                 gradients_sq = torch.pow(self.model.probe_filters_gradients(layer_name), 2).cpu()
                 if layer_name not in self.filters_meta:
@@ -299,7 +291,19 @@ class Tracker:
                 for idx, gradient_sq in enumerate(gradients_sq):
                     filters_in_layer[idx].report_gradient_sq(gradient_sq)
 
-            if to_evolve and not evolved and iter < (maxiter >> 2):
+            # boost learning rate of evolved filters
+            if evolved:
+                for layer_name, filter_indices in filters_evolved.items():
+                    self.model.boost_gradients(layer_name, filter_indices, lr_boost)
+                if lr_boost > 1:
+                    lr_boost *= 0.9
+
+            # optimize
+            torch.nn.utils.clip_grad_norm(self.model.parameters(), opts['grad_clip'])
+            optimizer.step()
+
+            # evolve filters
+            if to_evolve and not evolved and iter < (maxiter >> 3):
                 for layer_name in fe_layers:
                     filters_in_layer = self.filters_meta[layer_name]
                     gradient_norm_sum = 0
