@@ -86,10 +86,15 @@ def run_mdnet(img_list, init_bbox, gt=None,
     # Display
     savefig = savefig_dir != ''
     savevideo = savevideo_dir != ''
-    video_writer = cv2.VideoWriter(os.path.join(savevideo_dir, seq_name + '.avi'),
-                                   cv2.VideoWriter.fourcc('M', 'J', 'P', 'G'),
-                                   25,
-                                   image.size) if savevideo else None
+    if savevideo:
+        fn = os.path.join(savevideo_dir, seq_name + '.avi')
+        video_writer = cv2.VideoWriter(fn,
+                                       cv2.VideoWriter.fourcc('M', 'J', 'P', 'G'),
+                                       25,
+                                       image.size)
+        print('Saving result video to {}.'.format(fn))
+    else:
+        video_writer = None
     if display or savefig or savevideo:
         dpi = 80.0
         figsize = (image.size[0] / dpi, image.size[1] / dpi)
@@ -132,7 +137,7 @@ def run_mdnet(img_list, init_bbox, gt=None,
         spf_total += spf
 
         # Display
-        if display or savefig:
+        if display or savefig or savevideo:
             im.set_data(image)
 
             rect.set_xy(result_bb[i, :2])
@@ -167,6 +172,9 @@ def run_mdnet(img_list, init_bbox, gt=None,
 
     save_PATH = '../models/latest.pth'
     torch.save(tracker.model.state_dict(), save_PATH)
+
+    if savevideo:
+        video_writer.release()
 
     if gt is not None:
         dir = os.path.join('analysis', 'data', seq_name)
