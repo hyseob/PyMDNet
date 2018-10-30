@@ -62,7 +62,8 @@ class Tracker:
         if self.use_gpu:
             torch.cuda.set_device(gpu)
             self.model = self.model.cuda()
-        self.model.set_learnable_params(opts['ft_layers'])
+        self.first_learnable_layer, self.last_fixed_layer = \
+            self.model.set_learnable_params(opts['ft_layers'])
 
         # Init criterion and optimizer
         self.criterion = BinaryLoss()
@@ -75,7 +76,7 @@ class Tracker:
                                      self.target_bbox, opts['n_bbreg'], opts['overlap_bbreg'], opts['scale_bbreg'],
                                      force_nonempty=False)
         if len(bbreg_examples) > 0:
-            bbreg_feats = self.forward_samples(first_frame, bbreg_examples)
+            bbreg_feats = self.forward_samples(first_frame, bbreg_examples, out_layer='conv3')
             self.bbreg = BBRegressor(first_frame.size)
             self.bbreg.train(bbreg_feats, bbreg_examples, self.target_bbox)
 
@@ -91,16 +92,20 @@ class Tracker:
         neg_examples = np.random.permutation(neg_examples)
 
         # Extract pos/neg features
-        pos_feats = self.forward_samples(first_frame, pos_examples)
-        neg_feats = self.forward_samples(first_frame, neg_examples)
-        self.feat_dim = pos_feats.size(-1)
+        pos_feats = self.forward_samples(first_frame, pos_examples, out_layer=self.last_fixed_layer)
+        neg_feats = self.forward_samples(first_frame, neg_examples, out_layer=self.last_fixed_layer)
+        self.feat_dim = pos_feats.size()[1:]
 
         # Initial training
         final_loss = self.train(self.criterion, self.init_optimizer, pos_feats, neg_feats,
-                                opts['maxiter_init'], to_evolve=opts['enable_fe'])
+                                opts['maxiter_init'],
+                                in_layer=self.first_learnable_layer,
+                                to_evolve=opts['enable_fe'])
         while opts['loss_thresh'] != 0 and final_loss >= opts['loss_thresh']:
             final_loss = self.train(self.criterion, self.init_optimizer, pos_feats, neg_feats,
-                                    opts['maxiter_init'], to_evolve=False)
+                                    opts['maxiter_init'],
+                                    in_layer=self.first_learnable_layer,
+                                    to_evolve=False)
 
         # Init sample generators
         self.sample_generator = SampleGenerator('gaussian', first_frame.size, opts['trans_f'], opts['scale_f'],
@@ -139,7 +144,7 @@ class Tracker:
                 self.bbreg_bbox = self.target_bbox
             else:
                 bbreg_samples = samples[top_idx]
-                bbreg_feats = self.forward_samples(image, bbreg_samples)
+                bbreg_feats = self.forward_samples(image, bbreg_samples, out_layer='conv3')
                 bbreg_samples = self.bbreg.predict(bbreg_feats, bbreg_samples)
                 self.bbreg_bbox = bbreg_samples.mean(axis=0)
 
@@ -154,8 +159,8 @@ class Tracker:
                                        opts['overlap_neg_update'])
 
             # Extract pos/neg features
-            pos_feats = self.forward_samples(image, pos_examples)
-            neg_feats = self.forward_samples(image, neg_examples)
+            pos_feats = self.forward_samples(image, pos_examples, out_layer=self.last_fixed_layer)
+            neg_feats = self.forward_samples(image, neg_examples, out_layer=self.last_fixed_layer)
             self.pos_feats_all.append(pos_feats)
             self.neg_feats_all.append(neg_feats)
             if len(self.pos_feats_all) > opts['n_frames_long']:
@@ -166,23 +171,33 @@ class Tracker:
         # Short term update
         if not success:
             nframes = min(opts['n_frames_short'], len(self.pos_feats_all))
-            pos_data = torch.stack(self.pos_feats_all[-nframes:], 0).view(-1, self.feat_dim)
-            neg_data = torch.stack(self.neg_feats_all, 0).view(-1, self.feat_dim)
+            # Stack the samples from the selected frames together.
+            pos_data = torch.stack(self.pos_feats_all[-nframes:], 0).view(-1, *self.feat_dim)
+            neg_data = torch.stack(self.neg_feats_all, 0).view(-1, *self.feat_dim)
             final_loss = self.train(self.criterion, self.update_optimizer, pos_data, neg_data,
-                                    opts['maxiter_update'], to_evolve=opts['enable_fe'])
+                                    opts['maxiter_update'],
+                                    in_layer=self.first_learnable_layer,
+                                    to_evolve=opts['enable_fe'])
             while opts['loss_thresh'] != 0 and final_loss >= opts['loss_thresh']:
                 final_loss = self.train(self.criterion, self.update_optimizer, pos_data, neg_data,
-                                        opts['maxiter_update'], to_evolve=False)
+                                        opts['maxiter_update'],
+                                        in_layer=self.first_learnable_layer,
+                                        to_evolve=False)
 
         # Long term update
         elif self.frame_idx % opts['long_interval'] == 0:
-            pos_data = torch.stack(self.pos_feats_all, 0).view(-1, self.feat_dim)
-            neg_data = torch.stack(self.neg_feats_all, 0).view(-1, self.feat_dim)
+            # Stack the samples from all frames together.
+            pos_data = torch.stack(self.pos_feats_all, 0).view(-1, *self.feat_dim)
+            neg_data = torch.stack(self.neg_feats_all, 0).view(-1, *self.feat_dim)
             final_loss = self.train(self.criterion, self.update_optimizer, pos_data, neg_data,
-                                    opts['maxiter_update'], to_evolve=opts['enable_fe'])
+                                    opts['maxiter_update'],
+                                    in_layer=self.first_learnable_layer,
+                                    to_evolve=opts['enable_fe'])
             while opts['loss_thresh'] != 0 and final_loss >= opts['loss_thresh']:
                 final_loss = self.train(self.criterion, self.update_optimizer, pos_data, neg_data,
-                                        opts['maxiter_update'], to_evolve=False)
+                                        opts['maxiter_update'],
+                                        in_layer=self.first_learnable_layer,
+                                        to_evolve=False)
 
         return self.bbreg_bbox, target_score
 

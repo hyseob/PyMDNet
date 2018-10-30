@@ -45,6 +45,14 @@ class LRN(nn.Module):
         return x
 
 
+class LinView(nn.Module):
+    def __init__(self):
+        super(LinView, self).__init__()
+
+    def forward(self, x):
+        return x.view(x.size()[0], -1)
+
+
 class MDNet(nn.Module):
     def __init__(self, model_path=None, K=1):
         super(MDNet, self).__init__()
@@ -59,7 +67,8 @@ class MDNet(nn.Module):
                                     LRN(),
                                     nn.MaxPool2d(kernel_size=3, stride=2))),
             ('conv3', nn.Sequential(nn.Conv2d(256, 512, kernel_size=3, stride=1),
-                                    nn.ReLU())),
+                                    nn.ReLU(),
+                                    LinView())),
             ('fc4', nn.Sequential(nn.Dropout(0.5),
                                   nn.Linear(512 * 3 * 3, 512),
                                   nn.ReLU())),
@@ -94,11 +103,17 @@ class MDNet(nn.Module):
             append_params(self.params, module, 'fc6_%d' % (k))
 
     def set_learnable_params(self, layers):
+        last_fixed_layer = None
+        first_learnable_layer = None
         for k, p in self.params.items():
             if any([k.startswith(l) for l in layers]):
+                if first_learnable_layer is None:
+                    first_learnable_layer = k
                 p.requires_grad = True
             else:
                 p.requires_grad = False
+                last_fixed_layer = k
+        return first_learnable_layer.split('_')[0], last_fixed_layer.split('_')[0]
 
     def get_learnable_params(self):
         params = OrderedDict()
@@ -117,8 +132,6 @@ class MDNet(nn.Module):
                 run = True
             if run:
                 x = module(x)
-                if name == 'conv3':
-                    x = x.view(x.size(0), -1)
                 if name == out_layer:
                     return x
 

@@ -49,11 +49,11 @@ opts['w_decay'] = 0.0005
 opts['momentum'] = 0.9
 opts['grad_clip'] = 10
 opts['lr_mult'] = {'fc6': 10}
-opts['ft_layers'] = ['fc']
+opts['ft_layers'] = ['conv3', 'fc']
 
 # Filter evolution options.
 opts['enable_fe'] = True
-opts['fe_layers'] = ['fc4', 'fc5']
+opts['fe_layers'] = ['conv3', 'fc4', 'fc5']
 opts['grad_ratio_thresh'] = 0.01
 opts['lr_boost'] = 4096
 opts['loss_thresh'] = 0

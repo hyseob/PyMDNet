@@ -89,7 +89,7 @@ def run_mdnet(img_list, init_bbox, gt=None,
     if savevideo:
         fn = os.path.join(savevideo_dir, seq_name + '.avi')
         video_writer = cv2.VideoWriter(fn,
-                                       cv2.VideoWriter.fourcc('M', 'J', 'P', 'G'),
+                                       cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),
                                        25,
                                        image.size)
         print('Saving result video to {}.'.format(fn))
