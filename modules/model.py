@@ -8,22 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.distributions as tdist
-
-
-def append_params(params, module, prefix):
-    for child in module.children():
-        for k, p in child.named_parameters():
-            if p is None: continue
-
-            if isinstance(child, nn.BatchNorm2d):
-                name = prefix + '_bn_' + k
-            else:
-                name = prefix + '_' + k
-
-            if name not in params:
-                params[name] = p
-            else:
-                raise RuntimeError("Duplicated param name: %s" % (name))
+from torchvision.models import resnet18
 
 
 class LRN(nn.Module):
@@ -57,34 +42,12 @@ class MDNet(nn.Module):
     def __init__(self, model_path=None, K=1):
         super(MDNet, self).__init__()
         self.K = K
-        self.layers = nn.Sequential(OrderedDict([
-            ('conv1', nn.Sequential(nn.Conv2d(3, 96, kernel_size=7, stride=2),
-                                    nn.ReLU(),
-                                    LRN(),
-                                    nn.MaxPool2d(kernel_size=3, stride=2))),
-            ('conv2', nn.Sequential(nn.Conv2d(96, 256, kernel_size=5, stride=2),
-                                    nn.ReLU(),
-                                    LRN(),
-                                    nn.MaxPool2d(kernel_size=3, stride=2))),
-            ('conv3', nn.Sequential(nn.Conv2d(256, 512, kernel_size=3, stride=1),
-                                    nn.ReLU(),
-                                    LinView())),
-            ('fc4', nn.Sequential(nn.Dropout(0.5),
-                                  nn.Linear(512 * 3 * 3, 512),
-                                  nn.ReLU())),
-            ('fc5', nn.Sequential(nn.Dropout(0.5),
-                                  nn.Linear(512, 512),
-                                  nn.ReLU()))]))
-        self.next_layer_names = {
-            'conv1': 'conv2',
-            'conv2': 'conv3',
-            'conv3': 'fc4',
-            'fc4': 'fc5',
-            'fc5': 'fc6_0',
-        }
 
-        self.branches = nn.ModuleList([nn.Sequential(nn.Dropout(0.5),
-                                                     nn.Linear(512, 2)) for _ in range(K)])
+        # To be filled by the build_layers method.
+        self.layers = None
+        self.branches = None
+
+        self.build_layers(model_path)
 
         if model_path is not None:
             if os.path.splitext(model_path)[1] == '.pth':
@@ -93,14 +56,44 @@ class MDNet(nn.Module):
                 self.load_mat_model(model_path)
             else:
                 raise RuntimeError("Unkown model format: %s" % (model_path))
+
+        self.params = None
+        self.layer_names = set()
+        self.next_layer_names = {}
         self.build_param_dict()
+
+    def append_params(self, params, module, prefix):
+        last_name = None
+        for child_name, child in module.named_children():
+            for k, p in child.named_parameters():
+                if p is None:
+                    continue
+
+                if isinstance(child, nn.BatchNorm2d):
+                    name = prefix + '.' + child_name + '_bn.' + k
+                else:
+                    name = prefix + '.' + child_name + '.' + k
+
+                if 'bn' not in name and 'weight' in name:
+                    layer_name = name[:-7]
+                    if last_name is not None:
+                        self.next_layer_names[last_name] = layer_name
+                    last_name = layer_name
+
+                if name not in params:
+                    params[name] = p
+                else:
+                    raise RuntimeError("Duplicated param name: %s" % (name))
+
+    def build_layers(self, model_path):
+        raise NotImplementedError
 
     def build_param_dict(self):
         self.params = OrderedDict()
         for name, module in self.layers.named_children():
-            append_params(self.params, module, name)
+            self.append_params(self.params, module, name)
         for k, module in enumerate(self.branches):
-            append_params(self.params, module, 'fc6_%d' % (k))
+            self.append_params(self.params, module, 'fc_ds_%d' % (k))
 
     def set_learnable_params(self, layers):
         last_fixed_layer = None
@@ -113,7 +106,7 @@ class MDNet(nn.Module):
             else:
                 p.requires_grad = False
                 last_fixed_layer = k
-        return first_learnable_layer.split('_')[0], last_fixed_layer.split('_')[0]
+        return first_learnable_layer.split('.')[0], last_fixed_layer.split('.')[0]
 
     def get_learnable_params(self):
         params = OrderedDict()
@@ -122,7 +115,7 @@ class MDNet(nn.Module):
                 params[k] = p
         return params
 
-    def forward(self, x, k=0, in_layer='conv1', out_layer='fc6'):
+    def forward(self, x, k=0, in_layer='conv1', out_layer=''):
         #
         # forward model from in_layer to out_layer
 
@@ -136,10 +129,7 @@ class MDNet(nn.Module):
                     return x
 
         x = self.branches[k](x)
-        if out_layer == 'fc6':
-            return x
-        elif out_layer == 'fc6_softmax':
-            return F.softmax(x)
+        return x
 
     def load_model(self, model_path):
         states = torch.load(model_path)
@@ -163,18 +153,18 @@ class MDNet(nn.Module):
     #     return torch.norm(grad.view((grad.shape[0], len(grad.view(-1)) / grad.shape[0])), dim=1)
 
     def probe_filters_gradients(self, layer_name):
-        return self.params[layer_name + '_bias'].grad.data
+        return self.params[layer_name + '.bias'].grad.data
 
     def get_num_filters(self, layer_name):
-        return self.params[layer_name + '_bias'].shape[0]
+        return self.params[layer_name + '.bias'].shape[0]
 
     def probe_filter_weight_norms(self, layer_name):
-        weights = self.params[layer_name + '_weight'].data
+        weights = self.params[layer_name + '.weight'].data
         return torch.norm(weights.view((weights.shape[0], len(weights.view(-1)) / weights.shape[0])), dim=1)
 
     def evolve_filters(self, optimizer, layer_name, filters_to_evolve, init_bias):
-        bias_params = self.params[layer_name + '_bias']
-        weight_params = self.params[layer_name + '_weight']
+        bias_params = self.params[layer_name + '.bias']
+        weight_params = self.params[layer_name + '.weight']
         bias_params.data[filters_to_evolve] = init_bias
         weight_params.data[filters_to_evolve, ...] = 0
         optimizer.state[bias_params]['momentum_buffer'][filters_to_evolve] = 0
@@ -182,7 +172,7 @@ class MDNet(nn.Module):
 
         # Set the weights of units following the evolved filters to have the same distribution as others.
         filters_not_to_evolve = list(set(range(len(bias_params))).difference(set(filters_to_evolve)))
-        weight_params = self.params[self.next_layer_names[layer_name] + '_weight']
+        weight_params = self.params[self.next_layer_names[layer_name] + '.weight']
         weights_not_evolved = weight_params.data[:, filters_not_to_evolve, ...].view(weight_params.shape[0], -1)
         mean = torch.mean(weights_not_evolved, dim=1)
         std = torch.std(weights_not_evolved, dim=1)
@@ -198,10 +188,60 @@ class MDNet(nn.Module):
         optimizer.state[weight_params]['momentum_buffer'][:, filters_to_evolve, ...] = 0
 
     def boost_gradients(self, layer_name, filter_indices, rate):
-        bias_params = self.params[layer_name + '_bias']
-        weight_params = self.params[layer_name + '_weight']
+        bias_params = self.params[layer_name + '.bias']
+        weight_params = self.params[layer_name + '.weight']
         bias_params.grad[filter_indices] *= rate
         weight_params.grad[filter_indices, ...] *= rate
+
+
+class MDNetVGGM(MDNet):
+    def __init__(self, model_path=None, K=1):
+        super(MDNetVGGM, self).__init__(model_path, K)
+
+    def build_layers(self, model_path):
+        self.layers = nn.Sequential(OrderedDict([
+            ('conv1', nn.Sequential(nn.Conv2d(3, 96, kernel_size=7, stride=2),
+                                    nn.ReLU(),
+                                    LRN(),
+                                    nn.MaxPool2d(kernel_size=3, stride=2))),
+            ('conv2', nn.Sequential(nn.Conv2d(96, 256, kernel_size=5, stride=2),
+                                    nn.ReLU(),
+                                    LRN(),
+                                    nn.MaxPool2d(kernel_size=3, stride=2))),
+            ('conv3', nn.Sequential(nn.Conv2d(256, 512, kernel_size=3, stride=1),
+                                    nn.ReLU(),
+                                    LinView())),
+            ('fc4', nn.Sequential(nn.Dropout(0.5),
+                                  nn.Linear(512 * 3 * 3, 512),
+                                  nn.ReLU())),
+            ('fc5', nn.Sequential(nn.Dropout(0.5),
+                                  nn.Linear(512, 512),
+                                  nn.ReLU()))]))
+
+        self.branches = nn.ModuleList([nn.Sequential(nn.Dropout(0.5),
+                                                     nn.Linear(512, 2)) for _ in range(self.K)])
+
+
+class MDNetResNet18(MDNet):
+    def __init__(self, model_path=None, K=1):
+        super(MDNetResNet18, self).__init__(model_path, K)
+
+    def build_layers(self, model_path):
+        resnet = resnet18(pretrained=model_path is None)
+        self.layers = nn.Sequential(OrderedDict([
+            ('conv1', nn.Sequential(resnet.conv1,
+                                    resnet.bn1,
+                                    resnet.relu,
+                                    resnet.maxpool)),
+            ('conv2', resnet.layer1),
+            ('conv3', resnet.layer2),
+            ('conv4', nn.Sequential(resnet.layer3,
+                                    nn.AvgPool2d(3),
+                                    LinView())),
+        ]))
+
+        self.branches = nn.ModuleList([nn.Sequential(nn.Dropout(0.5),
+                                                     nn.Linear(256, 2)) for _ in range(self.K)])
 
 
 class BinaryLoss(nn.Module):

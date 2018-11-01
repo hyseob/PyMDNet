@@ -186,38 +186,38 @@ def run_mdnet(img_list, init_bbox, gt=None,
         with open(overlap_ratio_fn, 'w') as f:
             f.write(','.join(map(str, overlap_ratios)))
 
-    if verbose:
-        for layer_name in opts['fe_layers']:
-            weight_norms = tracker.model.probe_filter_weight_norms(layer_name)
-
-            weight_norm_sum_evolved = 0
-            weight_norm_sum_not_evolved = 0
-            grad_norm_sum_evolved = 0
-            grad_norm_sum_not_evolved = 0
-            filter_evolved_cnt = 0
-            filter_not_evolved_cnt = 0
-
-            for idx, filter_meta in enumerate(tracker.filters_meta[layer_name]):
-                if filter_meta.evolution_cnt > 0:
-                    weight_norm_sum_evolved += weight_norms[idx]
-                    grad_norm_sum_evolved += filter_meta.gradient_norm()
-                    filter_evolved_cnt += 1
-                else:
-                    weight_norm_sum_not_evolved += weight_norms[idx]
-                    grad_norm_sum_not_evolved += filter_meta.gradient_norm()
-                    filter_not_evolved_cnt += 1
-
-            print('Average weights of {} filters with/without evolution: {}/{}'.format(
-                layer_name,
-                filter_evolved_cnt and weight_norm_sum_evolved / filter_evolved_cnt,
-                filter_not_evolved_cnt and weight_norm_sum_not_evolved / filter_not_evolved_cnt
-            ))
-
-            print('Average gradient norm of {} filters with/without evolution: {}/{}'.format(
-                layer_name,
-                filter_evolved_cnt and grad_norm_sum_evolved / filter_evolved_cnt,
-                filter_not_evolved_cnt and grad_norm_sum_not_evolved / filter_not_evolved_cnt
-            ))
+    # if verbose:
+    #     for layer_name in opts['fe_layers']:
+    #         weight_norms = tracker.model.probe_filter_weight_norms(layer_name)
+    #
+    #         weight_norm_sum_evolved = 0
+    #         weight_norm_sum_not_evolved = 0
+    #         grad_norm_sum_evolved = 0
+    #         grad_norm_sum_not_evolved = 0
+    #         filter_evolved_cnt = 0
+    #         filter_not_evolved_cnt = 0
+    #
+    #         for idx, filter_meta in enumerate(tracker.filters_meta[layer_name]):
+    #             if filter_meta.evolution_cnt > 0:
+    #                 weight_norm_sum_evolved += weight_norms[idx]
+    #                 grad_norm_sum_evolved += filter_meta.gradient_norm()
+    #                 filter_evolved_cnt += 1
+    #             else:
+    #                 weight_norm_sum_not_evolved += weight_norms[idx]
+    #                 grad_norm_sum_not_evolved += filter_meta.gradient_norm()
+    #                 filter_not_evolved_cnt += 1
+    #
+    #         print('Average weights of {} filters with/without evolution: {}/{}'.format(
+    #             layer_name,
+    #             filter_evolved_cnt and weight_norm_sum_evolved / filter_evolved_cnt,
+    #             filter_not_evolved_cnt and weight_norm_sum_not_evolved / filter_not_evolved_cnt
+    #         ))
+    #
+    #         print('Average gradient norm of {} filters with/without evolution: {}/{}'.format(
+    #             layer_name,
+    #             filter_evolved_cnt and grad_norm_sum_evolved / filter_evolved_cnt,
+    #             filter_not_evolved_cnt and grad_norm_sum_not_evolved / filter_not_evolved_cnt
+    #         ))
 
     fps = len(img_list) / spf_total
     return result_bb, fps

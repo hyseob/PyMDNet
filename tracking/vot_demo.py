@@ -80,6 +80,8 @@ if __name__ == "__main__":
                                gpu=gpu,
                                verbose=args.verbose)
 
+    print('Average FPS: {}'.format(fps))
+
     # Save result
     res = {'res': result_bb.round().tolist(), 'type': 'rect', 'fps': fps}
     json.dump(res, open(result_path, 'w'), indent=2)

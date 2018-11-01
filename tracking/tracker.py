@@ -1,17 +1,14 @@
 import os
 import sys
 
-import numpy as np
-import torch
 from torch import optim as optim
-from torch.autograd import Variable
 
 modules_path = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
                             '../modules')
 sys.path.insert(0, modules_path)
 from bbreg import BBRegressor
 from data_prov import RegionExtractor
-from model import MDNet, BinaryLoss
+from model import *
 from options import *
 from sample_generator import gen_samples, SampleGenerator
 
@@ -57,7 +54,10 @@ class Tracker:
         # Init model
         if verbose:
             print('Loading model from {}...'.format(opts['model_path']))
-        self.model = MDNet(opts['model_path'])
+        if opts['model_type'].lower() == 'ResNet18'.lower():
+            self.model = MDNetResNet18(opts['model_path'])
+        else:
+            self.model = MDNetVGGM(opts['model_path'])
         self.use_gpu = opts['use_gpu'] and gpu >= 0
         if self.use_gpu:
             torch.cuda.set_device(gpu)
@@ -76,7 +76,7 @@ class Tracker:
                                      self.target_bbox, opts['n_bbreg'], opts['overlap_bbreg'], opts['scale_bbreg'],
                                      force_nonempty=False)
         if len(bbreg_examples) > 0:
-            bbreg_feats = self.forward_samples(first_frame, bbreg_examples, out_layer='conv3')
+            bbreg_feats = self.forward_samples(first_frame, bbreg_examples, out_layer=opts['bbreg_layer'])
             self.bbreg = BBRegressor(first_frame.size)
             self.bbreg.train(bbreg_feats, bbreg_examples, self.target_bbox)
 
@@ -122,7 +122,7 @@ class Tracker:
 
         # Estimate target bbox
         samples = gen_samples(self.sample_generator, self.target_bbox, opts['n_samples'])
-        sample_scores = self.forward_samples(image, samples, out_layer='fc6')
+        sample_scores = self.forward_samples(image, samples, out_layer='')
         top_scores, top_idx = sample_scores[:, 1].topk(5)
         top_idx = top_idx.cpu().numpy()
         target_score = top_scores.mean()
@@ -144,7 +144,7 @@ class Tracker:
                 self.bbreg_bbox = self.target_bbox
             else:
                 bbreg_samples = samples[top_idx]
-                bbreg_feats = self.forward_samples(image, bbreg_samples, out_layer='conv3')
+                bbreg_feats = self.forward_samples(image, bbreg_samples, out_layer=opts['bbreg_layer'])
                 bbreg_samples = self.bbreg.predict(bbreg_feats, bbreg_samples)
                 self.bbreg_bbox = bbreg_samples.mean(axis=0)
 
@@ -201,7 +201,7 @@ class Tracker:
 
         return self.bbreg_bbox, target_score
 
-    def forward_samples(self, image, samples, out_layer='conv3'):
+    def forward_samples(self, image, samples, out_layer):
         assert len(samples) > 0
 
         self.model.eval()
@@ -252,7 +252,13 @@ class Tracker:
 
         final_loss = 0
 
-        fe_layers = opts['fe_layers']
+        fe_layers = []
+        for layer_name in self.model.layer_names:
+            for pattern in opts['fe_layers']:
+                if pattern in layer_name:
+                    fe_layers.append(layer_name)
+                    break
+
         grad_ratio_thresh = opts['grad_ratio_thresh']
         evolved = False
         filters_evolved = {}
