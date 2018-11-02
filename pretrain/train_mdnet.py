@@ -9,16 +9,16 @@ from data_prov import *
 from model import *
 from options import *
 
-img_home = '../dataset/'
 data_path = 'data/vot-otb.pkl'
 
 
 def set_optimizer(model, lr_base, lr_mult=opts['lr_mult'], momentum=opts['momentum'], w_decay=opts['w_decay']):
     params = model.get_learnable_params()
     param_list = []
-    for k, p in params.iteritems():
+    lr = None
+    for k, p in params.items():
         lr = lr_base
-        for l, m in lr_mult.iteritems():
+        for l, m in lr_mult.items():
             if k.startswith(l):
                 lr = lr_base * m
         param_list.append({'params': [p], 'lr': lr})
@@ -27,37 +27,36 @@ def set_optimizer(model, lr_base, lr_mult=opts['lr_mult'], momentum=opts['moment
 
 
 def train_mdnet():
-    ## Init dataset ##
+    # Init dataset.
     with open(data_path, 'rb') as fp:
-        data = pickle.load(fp)
+        training_data = pickle.load(fp)
 
-    K = len(data)
-    dataset = [None] * K
-    for k, (seqname, seq) in enumerate(data.iteritems()):
+    K = len(training_data)
+    datasets = []
+    for seqpath, seq in training_data.items():
         img_list = seq['images']
         gt = seq['gt']
-        img_dir = os.path.join(img_home, seqname)
-        dataset[k] = RegionDataset(img_dir, img_list, gt, opts)
+        datasets.append(RegionDataset(seqpath, img_list, gt, opts))
 
-    ## Init model ##
+    # Init model.
     model = MDNet(opts['init_model_path'], K)
     if opts['use_gpu']:
         model = model.cuda()
     model.set_learnable_params(opts['ft_layers'])
 
-    ## Init criterion and optimizer ##
+    # Init criterion and optimizer.
     criterion = BinaryLoss()
     evaluator = Precision()
     optimizer = set_optimizer(model, opts['lr'])
 
     best_prec = 0.
     for i in range(opts['n_cycles']):
-        print("==== Start Cycle %d ====" % (i))
+        print("==== Start Cycle %d ====" % i)
         k_list = np.random.permutation(K)
         prec = np.zeros(K)
         for j, k in enumerate(k_list):
             tic = time.time()
-            pos_regions, neg_regions = dataset[k].next()
+            pos_regions, neg_regions = datasets[k].next()
 
             pos_regions = Variable(pos_regions)
             neg_regions = Variable(neg_regions)
@@ -78,11 +77,11 @@ def train_mdnet():
             prec[k] = evaluator(pos_score, neg_score)
 
             toc = time.time() - tic
-            print("Cycle %2d, K %2d (%2d), Loss %.3f, Prec %.3f, Time %.3f" % \
+            print("Cycle %2d, K %2d (%2d), Loss %.3f, Prec %.3f, Time %.3f" %
                   (i, j, k, loss.data[0], prec[k], toc))
 
         cur_prec = prec.mean()
-        print("Mean Precision: %.3f" % (cur_prec))
+        print("Mean Precision: %.3f" % cur_prec)
         if cur_prec > best_prec:
             best_prec = cur_prec
             if opts['use_gpu']:
