@@ -1,11 +1,20 @@
+from os import path as osp
 from collections import OrderedDict
 
 opts = OrderedDict()
 opts['use_gpu'] = True
 
+opts['random'] = False
+
+# opts['data_path'] = 'data/vot-otb.pkl'
+opts['data_path'] = 'data/imagenet.pkl'
+
+# opts['model_type'] = 'VGG-M'
 # opts['init_model_path'] = '../models/imagenet-vgg-m.mat'
 # opts['model_path'] = '../models/mdnet_vot-otb_new.pth'
-opts['init_model_path'] = None
+opts['model_type'] = 'ResNet18'
+# opts['init_model_path'] = None
+opts['init_model_path'] = '../models/mdnet_resnet_imagenet_new.pth'
 opts['model_path'] = '../models/mdnet_resnet_imagenet_new.pth'
 
 opts['batch_frames'] = 8
@@ -27,3 +36,4 @@ opts['grad_clip'] = 10
 opts['ft_layers'] = ['conv', 'fc']
 opts['lr_mult'] = {'conv4': 10, 'fc': 10}
 opts['n_cycles'] = 50
+opts['inst_emb_loss_weight'] = 0.1

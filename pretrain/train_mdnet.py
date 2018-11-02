@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import argparse
 import pickle
 import time
 
@@ -9,7 +10,10 @@ from data_prov import *
 from model import *
 from options import *
 
-data_path = 'data/vot-otb.pkl'
+if not opts['random']:
+    np.random.seed(123)
+    torch.manual_seed(456)
+    torch.cuda.manual_seed(789)
 
 
 def set_optimizer(model, lr_base, lr_mult=opts['lr_mult'], momentum=opts['momentum'], w_decay=opts['w_decay']):
@@ -26,12 +30,34 @@ def set_optimizer(model, lr_base, lr_mult=opts['lr_mult'], momentum=opts['moment
     return optimizer
 
 
-def train_mdnet():
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def dampen(self, ratio):
+        self.sum *= ratio
+        self.count *= ratio
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+
+def train_mdnet(gpu):
     # Init dataset.
-    with open(data_path, 'rb') as fp:
+    print('Loading training data...')
+    with open(opts['data_path'], 'rb') as fp:
         training_data = pickle.load(fp)
 
     K = len(training_data)
+    print('Training MDNet with {} domains...'.format(K))
     datasets = []
     for seqpath, seq in training_data.items():
         img_list = seq['images']
@@ -39,17 +65,30 @@ def train_mdnet():
         datasets.append(RegionDataset(seqpath, img_list, gt, opts))
 
     # Init model.
-    model = MDNet(opts['init_model_path'], K)
+    print('Initializing model...')
+    if opts['model_type'].lower() == 'ResNet18'.lower():
+        model = MDNetResNet18(opts['init_model_path'], K)
+    else:
+        model = MDNetVGGM(opts['init_model_path'], K)
     if opts['use_gpu']:
+        torch.cuda.set_device(int(gpu))
         model = model.cuda()
     model.set_learnable_params(opts['ft_layers'])
 
+    # Recover training information.
+    if opts['init_model_path'] is None:
+        best_prec = 0.
+    else:
+        states = torch.load(opts['init_model_path'])
+        best_prec = states['best_prec']
+
     # Init criterion and optimizer.
-    criterion = BinaryLoss()
+    cls_criterion = ClassificationLoss()
+    inst_emb_criterion = InstanceEmbeddingLoss()
     evaluator = Precision()
     optimizer = set_optimizer(model, opts['lr'])
 
-    best_prec = 0.
+    loss_meter = AverageMeter()
     for i in range(opts['n_cycles']):
         print("==== Start Cycle %d ====" % i)
         k_list = np.random.permutation(K)
@@ -65,20 +104,26 @@ def train_mdnet():
                 pos_regions = pos_regions.cuda()
                 neg_regions = neg_regions.cuda()
 
-            pos_score = model(pos_regions, k)
+            pos_score = model(pos_regions, range(K))
             neg_score = model(neg_regions, k)
+            cls_loss = cls_criterion(pos_score[k], neg_score)
 
-            loss = criterion(pos_score, neg_score)
+            inst_emb_loss = inst_emb_criterion(pos_score, k)
+
+            loss = cls_loss + opts['inst_emb_loss_weight'] * inst_emb_loss
+
             model.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm(model.parameters(), opts['grad_clip'])
             optimizer.step()
 
-            prec[k] = evaluator(pos_score, neg_score)
+            prec[k] = evaluator(pos_score[k], neg_score)
 
             toc = time.time() - tic
-            print("Cycle %2d, K %2d (%2d), Loss %.3f, Prec %.3f, Time %.3f" %
-                  (i, j, k, loss.data[0], prec[k], toc))
+            loss_meter.update(loss.data[0])
+            print("Cycle %2d, K %2d (%2d), Loss %.3f (%.3f), Prec %.3f, Time %.3f" %
+                  (i, j, k, loss_meter.avg, loss.data[0], prec[k], toc))
+        loss_meter.dampen(0.1)
 
         cur_prec = prec.mean()
         print("Mean Precision: %.3f" % cur_prec)
@@ -86,12 +131,16 @@ def train_mdnet():
             best_prec = cur_prec
             if opts['use_gpu']:
                 model = model.cpu()
-            states = {'shared_layers': model.layers.state_dict()}
-            print("Save model to %s" % opts['model_path'])
+            states = {'shared_layers': model.layers.state_dict(),
+                      'best_prec': cur_prec}
+            print("Saving model to %s" % opts['model_path'])
             torch.save(states, opts['model_path'])
             if opts['use_gpu']:
                 model = model.cuda()
 
 
 if __name__ == "__main__":
-    train_mdnet()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-g', '--gpu', type=str, help='id of GPU to use, -1 for cpu', default='0')
+    args = parser.parse_args()
+    train_mdnet(gpu=args.gpu)

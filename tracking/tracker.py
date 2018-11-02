@@ -66,7 +66,7 @@ class Tracker:
             self.model.set_learnable_params(opts['ft_layers'])
 
         # Init criterion and optimizer
-        self.criterion = BinaryLoss()
+        self.criterion = ClassificationLoss()
         self.init_optimizer = self.set_optimizer(opts['lr_init'])
         self.update_optimizer = self.set_optimizer(opts['lr_update'])
 

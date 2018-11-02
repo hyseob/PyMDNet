@@ -1,5 +1,5 @@
 import os
-from collections import OrderedDict
+from collections import OrderedDict, Iterable
 
 import numpy as np
 import scipy.io
@@ -106,7 +106,8 @@ class MDNet(nn.Module):
             else:
                 p.requires_grad = False
                 last_fixed_layer = k
-        return first_learnable_layer.split('.')[0], last_fixed_layer.split('.')[0]
+        return first_learnable_layer is not None and first_learnable_layer.split('.')[0], \
+               last_fixed_layer is not None and last_fixed_layer.split('.')[0]
 
     def get_learnable_params(self):
         params = OrderedDict()
@@ -128,7 +129,10 @@ class MDNet(nn.Module):
                 if name == out_layer:
                     return x
 
-        x = self.branches[k](x)
+        if isinstance(k, Iterable):
+            x = [self.branches[i](x) for i in k]
+        else:
+            x = self.branches[k](x)
         return x
 
     def load_model(self, model_path):
@@ -236,7 +240,7 @@ class MDNetResNet18(MDNet):
             ('conv2', resnet.layer1),
             ('conv3', resnet.layer2),
             ('conv4', nn.Sequential(resnet.layer3,
-                                    nn.AvgPool2d(3),
+                                    nn.AdaptiveAvgPool2d((1, 1)),
                                     LinView())),
         ]))
 
@@ -244,9 +248,9 @@ class MDNetResNet18(MDNet):
                                                      nn.Linear(256, 2)) for _ in range(self.K)])
 
 
-class BinaryLoss(nn.Module):
+class ClassificationLoss(nn.Module):
     def __init__(self):
-        super(BinaryLoss, self).__init__()
+        super(ClassificationLoss, self).__init__()
 
     def forward(self, pos_score, neg_score):
         pos_loss = -F.log_softmax(pos_score, dim=1)[:, 1]
@@ -254,6 +258,16 @@ class BinaryLoss(nn.Module):
 
         loss = pos_loss.sum() + neg_loss.sum()
         return loss
+
+
+class InstanceEmbeddingLoss(nn.Module):
+    def __init__(self):
+        super(InstanceEmbeddingLoss, self).__init__()
+
+    def forward(self, K_scores, k):
+        scores = torch.stack([scores[:, 1] for scores in K_scores], dim=1)
+        loss = -F.log_softmax(scores, dim=1)[:, k]
+        return loss.sum()
 
 
 class Accuracy:
