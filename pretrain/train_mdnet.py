@@ -55,14 +55,8 @@ def train_mdnet(gpu):
     print('Loading training data...')
     with open(opts['data_path'], 'rb') as fp:
         training_data = pickle.load(fp)
-
     K = len(training_data)
     print('Training MDNet with {} domains...'.format(K))
-    datasets = []
-    for seqpath, seq in training_data.items():
-        img_list = seq['images']
-        gt = seq['gt']
-        datasets.append(RegionDataset(seqpath, img_list, gt, opts))
 
     # Init model.
     print('Initializing model...')
@@ -74,6 +68,13 @@ def train_mdnet(gpu):
         torch.cuda.set_device(int(gpu))
         model = model.cuda()
     model.set_learnable_params(opts['ft_layers'])
+
+    print('Creating datasets...')
+    datasets = []
+    for seqpath, seq in training_data.items():
+        img_list = seq['images']
+        gt = seq['gt']
+        datasets.append(RegionDataset(seqpath, img_list, gt, opts))
 
     # Recover training information.
     if opts['init_model_path'] is None:
