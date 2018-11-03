@@ -12,6 +12,7 @@ opts['data_path'] = 'data/imagenet.pkl'
 # opts['model_type'] = 'VGG-M'
 # opts['init_model_path'] = '../models/imagenet-vgg-m.mat'
 # opts['model_path'] = '../models/mdnet_vot-otb_new.pth'
+# opts['model_path'] = '../models/mdnet_imagenet_new.pth'
 opts['model_type'] = 'ResNet18'
 # opts['init_model_path'] = None
 opts['init_model_path'] = '../models/mdnet_resnet_imagenet_new.pth'

@@ -77,7 +77,7 @@ def train_mdnet(gpu):
         datasets.append(RegionDataset(seqpath, img_list, gt, opts))
 
     # Recover training information.
-    if opts['init_model_path'] is None:
+    if opts['init_model_path'] is None or not opts['init_model_path'].endswith('.pth'):
         best_prec = 0.
     else:
         states = torch.load(opts['init_model_path'])
