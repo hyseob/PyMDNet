@@ -28,7 +28,7 @@ first_frame = Image.open(imagefile).convert('RGB')
 print('Initializing tracker...')
 mdnet = Tracker((selection.x, selection.y, selection.width, selection.height),
                 first_frame,
-                gpu=1)
+                gpu=3)
 
 while True:
     imagefile = handle.frame()

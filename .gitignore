@@ -1,5 +1,6 @@
 result
 result_fig
+result_video
 models/tmp
 tracking/tmp
 modules/*.pyc
