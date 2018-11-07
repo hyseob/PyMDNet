@@ -91,8 +91,9 @@ class Server(MessageParser):
             :returns: A request structure
             :rtype: trax.server.Request
         """
-
+        print("Trax server reading message...")
         message = self._read_message()
+        print("Trax received message of type {}!".format(message.type))
         if message.type == None:
             return Request(MessageType.ERROR, None, None, None)
 

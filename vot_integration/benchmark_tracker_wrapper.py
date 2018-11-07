@@ -31,6 +31,7 @@ mdnet = Tracker((selection.x, selection.y, selection.width, selection.height),
                 gpu=3)
 
 while True:
+    print('Getting the next frame...')
     imagefile = handle.frame()
     if not imagefile:
         break
