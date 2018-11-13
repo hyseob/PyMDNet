@@ -20,7 +20,7 @@ if not opts['random']:
 
 class FilterMeta:
     def __init__(self):
-        self.evolution_cnt = 0
+        self.evolved = False
         self.gradient_sq_acc = 0
         self.gradient_sq_potential = 0
 
@@ -32,9 +32,7 @@ class FilterMeta:
         self.gradient_sq_acc += grad_sq
 
     def report_evolution(self):
-        self.evolution_cnt += 1
-        self.gradient_sq_acc = 0
-        self.gradient_sq_potential = 0
+        self.evolved = True
 
     def dampen_gradient_rec(self, factor):
         self.gradient_sq_potential *= factor
@@ -44,7 +42,6 @@ class FilterMeta:
 class Tracker:
     def __init__(self, init_bbox, first_frame, gpu, verbose=False):
         self.verbose = verbose
-        self.filters_meta = {}
 
         self.frame_idx = 0
 
@@ -55,15 +52,34 @@ class Tracker:
         if verbose:
             print('Loading model from {}...'.format(opts['model_path']))
         if opts['model_type'].lower() == 'ResNet18'.lower():
+            print('Using ResNet-18')
             self.model = MDNetResNet18(opts['model_path'])
         else:
+            print('Using VGG-M')
             self.model = MDNetVGGM(opts['model_path'])
+
+        # Probe the structure of the network.
+        self.first_learnable_layer, self.last_fixed_layer = \
+            self.model.set_learnable_params(opts['ft_layers'])
+        self.filters_meta = {
+            param_name: [FilterMeta() for _ in range(self.model.get_num_filters(param_name))]
+            for param_name in self.model.ft_layers
+        }
+
+        # Initialize the target-relevance loss mask.
+        self.tr_loss_mask = {
+            param_name: torch.autograd.Variable(torch.zeros(self.model.get_num_filters(param_name)),
+                                                requires_grad=False)
+            for param_name in self.model.ft_layers
+        }
+
+        # Use GPU.
         self.use_gpu = opts['use_gpu'] and gpu >= 0
         if self.use_gpu:
             torch.cuda.set_device(gpu)
             self.model = self.model.cuda()
-        self.first_learnable_layer, self.last_fixed_layer = \
-            self.model.set_learnable_params(opts['ft_layers'])
+            for layer_name in self.tr_loss_mask:
+                self.tr_loss_mask[layer_name] = self.tr_loss_mask[layer_name].cuda()
 
         # Init criterion and optimizer
         self.criterion = ClassificationLoss()
@@ -99,13 +115,11 @@ class Tracker:
         # Initial training
         final_loss = self.train(self.criterion, self.init_optimizer, pos_feats, neg_feats,
                                 opts['maxiter_init'],
-                                in_layer=self.first_learnable_layer,
-                                to_evolve=opts['enable_fe'])
-        while opts['loss_thresh'] != 0 and final_loss >= opts['loss_thresh']:
+                                in_layer=self.first_learnable_layer)
+        while opts['converge_loss_thresh'] != 0 and final_loss >= opts['converge_loss_thresh']:
             final_loss = self.train(self.criterion, self.init_optimizer, pos_feats, neg_feats,
                                     opts['maxiter_init'],
-                                    in_layer=self.first_learnable_layer,
-                                    to_evolve=False)
+                                    in_layer=self.first_learnable_layer)
 
         # Init sample generators
         self.sample_generator = SampleGenerator('gaussian', first_frame.size, opts['trans_f'], opts['scale_f'],
@@ -176,13 +190,11 @@ class Tracker:
             neg_data = torch.stack(self.neg_feats_all, 0).view(-1, *self.feat_dim)
             final_loss = self.train(self.criterion, self.update_optimizer, pos_data, neg_data,
                                     opts['maxiter_update'],
-                                    in_layer=self.first_learnable_layer,
-                                    to_evolve=opts['enable_fe'])
-            while opts['loss_thresh'] != 0 and final_loss >= opts['loss_thresh']:
+                                    in_layer=self.first_learnable_layer)
+            while opts['converge_loss_thresh'] != 0 and final_loss >= opts['converge_loss_thresh']:
                 final_loss = self.train(self.criterion, self.update_optimizer, pos_data, neg_data,
                                         opts['maxiter_update'],
-                                        in_layer=self.first_learnable_layer,
-                                        to_evolve=False)
+                                        in_layer=self.first_learnable_layer)
 
         # Long term update
         elif self.frame_idx % opts['long_interval'] == 0:
@@ -191,13 +203,11 @@ class Tracker:
             neg_data = torch.stack(self.neg_feats_all, 0).view(-1, *self.feat_dim)
             final_loss = self.train(self.criterion, self.update_optimizer, pos_data, neg_data,
                                     opts['maxiter_update'],
-                                    in_layer=self.first_learnable_layer,
-                                    to_evolve=opts['enable_fe'])
-            while opts['loss_thresh'] != 0 and final_loss >= opts['loss_thresh']:
+                                    in_layer=self.first_learnable_layer)
+            while opts['converge_loss_thresh'] != 0 and final_loss >= opts['converge_loss_thresh']:
                 final_loss = self.train(self.criterion, self.update_optimizer, pos_data, neg_data,
                                         opts['maxiter_update'],
-                                        in_layer=self.first_learnable_layer,
-                                        to_evolve=False)
+                                        in_layer=self.first_learnable_layer)
 
         return self.bbreg_bbox, target_score
 
@@ -233,7 +243,7 @@ class Tracker:
         optimizer = optim.SGD(param_list, lr=lr, momentum=momentum, weight_decay=w_decay)
         return optimizer
 
-    def train(self, criterion, optimizer, pos_feats, neg_feats, maxiter, in_layer='fc4', to_evolve=True):
+    def train(self, criterion, optimizer, pos_feats, neg_feats, maxiter, in_layer='fc4'):
         self.model.train()
 
         batch_pos = opts['batch_pos']
@@ -253,27 +263,21 @@ class Tracker:
         final_loss = 0
 
         fe_layers = []
-        for layer_name in self.model.layer_names:
+        for layer in self.model.ft_layers:
             for pattern in opts['fe_layers']:
-                if pattern in layer_name:
-                    fe_layers.append(layer_name)
+                if pattern in layer:
+                    fe_layers.append(layer)
                     break
 
         grad_ratio_thresh = opts['grad_ratio_thresh']
-        evolved = False
-        filters_evolved = {}
 
         # dampen previous recorded gradients
         dampen_factor = opts['grad_dampen_factor']
-        for layer_name in fe_layers:
-            if layer_name not in self.filters_meta:
-                self.filters_meta[layer_name] = [FilterMeta() for _ in range(self.model.get_num_filters(layer_name))]
-            for filter_meta in self.filters_meta[layer_name]:
+        for layer in fe_layers:
+            for filter_meta in self.filters_meta[layer]:
                 filter_meta.dampen_gradient_rec(dampen_factor)
 
-        lr_boost = opts['lr_boost']
-
-        for iter in range(maxiter):
+        for iteration in range(maxiter):
             # select pos filter_idx
             pos_next = pos_pointer + batch_pos
             pos_cur_idx = pos_idx[pos_pointer:pos_next]
@@ -307,61 +311,63 @@ class Tracker:
                 self.model.train()
 
             # forward
-            pos_score = self.model(batch_pos_feats, in_layer=in_layer)
-            neg_score = self.model(batch_neg_feats, in_layer=in_layer)
+            pos_outputs = self.model(batch_pos_feats, in_layer=in_layer, out_layer=fe_layers)
+            neg_outputs = self.model(batch_neg_feats, in_layer=in_layer, out_layer=fe_layers)
+            pos_score = pos_outputs['score']
+            neg_score = neg_outputs['score']
 
-            # compute gradients
-            loss = criterion(pos_score, neg_score)
-            self.model.zero_grad()
-            loss.backward()
+            # compute classificaiton loss
+            cls_loss = criterion(pos_score, neg_score)
 
             # record gradients
-            for layer_name in fe_layers:
-                gradients_sq = torch.pow(self.model.probe_filters_gradients(layer_name), 2).cpu()
-                filters_in_layer = self.filters_meta[layer_name]
+            self.model.zero_grad()
+            cls_loss.backward(retain_graph=True)
+            for layer in fe_layers:
+                gradients_sq = torch.pow(self.model.probe_filters_gradients(layer), 2).cpu()
+                filters_in_layer = self.filters_meta[layer]
                 for idx, gradient_sq in enumerate(gradients_sq):
                     filters_in_layer[idx].report_gradient_sq(gradient_sq)
 
-            # boost learning rate of evolved filters
-            if evolved:
-                for layer_name, filter_indices in filters_evolved.items():
-                    self.model.boost_gradients(layer_name, filter_indices, lr_boost)
-                if lr_boost > 1:
-                    lr_boost *= 0.9
+            # compute target-relevance loss
+            if opts['enable_fe']:
+                tr_loss = opts['tr_loss_ratio'] * sum([
+                    torch.sum(torch.sum(torch.cat([-pos_outputs[layer], neg_outputs[layer]],
+                                                  dim=0),
+                                        dim=0)
+                              * self.tr_loss_mask[layer])
+                    for layer in fe_layers
+                ])
+                tr_loss.backward()
 
             # optimize
             torch.nn.utils.clip_grad_norm(self.model.parameters(), opts['grad_clip'])
             optimizer.step()
 
             # evolve filters
-            if to_evolve and not evolved and iter < (maxiter >> 3):
-                for layer_name in fe_layers:
-                    filters_in_layer = self.filters_meta[layer_name]
+            if opts['enable_fe']:
+                for layer in fe_layers:
+                    filters_in_layer = self.filters_meta[layer]
                     gradient_norm_sum = 0
                     for filter_meta in filters_in_layer:
                         gradient_norm_sum += filter_meta.gradient_norm()
                     mean_gradient_norm = gradient_norm_sum / len(filters_in_layer)
                     filters_to_evolve = list(
                         filter(lambda filter_idx:
+                               not filters_in_layer[filter_idx].evolved and
                                filters_in_layer[filter_idx].gradient_norm() < mean_gradient_norm * grad_ratio_thresh,
                                range(len(filters_in_layer)))
                     )
 
                     if len(filters_to_evolve) > 0:
-                        self.model.evolve_filters(optimizer, layer_name, filters_to_evolve, opts['init_bias'])
-
-                        for idx in filters_to_evolve:
-                            filters_in_layer[idx].report_evolution()
-
+                        self.tr_loss_mask[layer][filters_to_evolve] = 1
+                        for filter_idx in filters_to_evolve:
+                            filters_in_layer[filter_idx].report_evolution()
                         if self.verbose:
                             print('Evolved {} filters in {}: {}'.format(len(filters_to_evolve),
-                                                                        layer_name,
+                                                                        layer,
                                                                         filters_to_evolve))
 
-                        filters_evolved[layer_name] = filters_to_evolve
-                        evolved = True
-
-            final_loss = loss.data[0]
+            final_loss = cls_loss.data[0]
             # print("Iter %d, Loss %.4f" % (iter, final_loss))
 
         return final_loss

@@ -70,7 +70,7 @@ class MDNet(nn.Module):
                 raise RuntimeError("Unkown model format: %s" % (model_path))
 
         self.params = None
-        self.layer_names = set()
+        self.ft_layers = set()
         self.next_layer_names = {}
         self.build_param_dict()
 
@@ -110,16 +110,17 @@ class MDNet(nn.Module):
     def set_learnable_params(self, layers):
         last_fixed_layer = None
         first_learnable_layer = None
-        for k, p in self.params.items():
-            if any([k.startswith(l) for l in layers]):
+        for param_name, param in self.params.items():
+            if any([param_name.startswith(l) for l in layers]):
+                layer_name = param_name.split('.')[0]
                 if first_learnable_layer is None:
-                    first_learnable_layer = k
-                p.requires_grad = True
+                    first_learnable_layer = layer_name
+                self.ft_layers.add(layer_name)
+                param.requires_grad = True
             else:
-                p.requires_grad = False
-                last_fixed_layer = k
-        return first_learnable_layer is not None and first_learnable_layer.split('.')[0], \
-               last_fixed_layer is not None and last_fixed_layer.split('.')[0]
+                last_fixed_layer = param_name.split('.')[0]
+                param.requires_grad = False
+        return first_learnable_layer, last_fixed_layer
 
     def get_learnable_params(self):
         params = OrderedDict()
@@ -131,7 +132,7 @@ class MDNet(nn.Module):
     def forward(self, x, k=0, in_layer='conv1', out_layer=''):
         #
         # forward model from in_layer to out_layer
-
+        outputs = {}
         run = False
         for name, module in self.layers.named_children():
             if name == in_layer:
@@ -140,12 +141,18 @@ class MDNet(nn.Module):
                 x = module(x)
                 if name == out_layer:
                     return x
+                if isinstance(out_layer, list) and name in out_layer:
+                    outputs[name] = x
 
         if isinstance(k, Iterable):
             x = [self.branches[i](x) for i in k]
         else:
             x = self.branches[k](x)
-        return x
+        if isinstance(out_layer, list):
+            outputs['score'] = x
+            return outputs
+        else:
+            return x
 
     def load_model(self, model_path):
         states = torch.load(model_path)
@@ -162,52 +169,18 @@ class MDNet(nn.Module):
             self.layers[i][0].weight.data = torch.from_numpy(np.transpose(weight, (3, 2, 0, 1)))
             self.layers[i][0].bias.data = torch.from_numpy(bias[:, 0])
 
-    # def probe_filters_gradients(self, block_idx, layer_idx):
-    #     layer = self.layers[block_idx][layer_idx]
-    #     layer_params = layer.weight
-    #     grad = layer_params.grad
-    #     return torch.norm(grad.view((grad.shape[0], len(grad.view(-1)) / grad.shape[0])), dim=1)
-
     def probe_filters_gradients(self, layer_name):
-        return self.params[layer_name + '.bias'].grad.data
+        return self.params[self.find_last_param_of_layer(layer_name, 'bias')].grad.data
+
+    def find_last_param_of_layer(self, layer_name, spec):
+        last_param_name = None
+        for param_name in self.params:
+            if layer_name in param_name and spec in param_name:
+                last_param_name = param_name
+        return last_param_name
 
     def get_num_filters(self, layer_name):
-        return self.params[layer_name + '.bias'].shape[0]
-
-    def probe_filter_weight_norms(self, layer_name):
-        weights = self.params[layer_name + '.weight'].data
-        return torch.norm(weights.view((weights.shape[0], len(weights.view(-1)) / weights.shape[0])), dim=1)
-
-    def evolve_filters(self, optimizer, layer_name, filters_to_evolve, init_bias):
-        bias_params = self.params[layer_name + '.bias']
-        weight_params = self.params[layer_name + '.weight']
-        bias_params.data[filters_to_evolve] = init_bias
-        weight_params.data[filters_to_evolve, ...] = 0
-        optimizer.state[bias_params]['momentum_buffer'][filters_to_evolve] = 0
-        optimizer.state[weight_params]['momentum_buffer'][filters_to_evolve, ...] = 0
-
-        # Set the weights of units following the evolved filters to have the same distribution as others.
-        filters_not_to_evolve = list(set(range(len(bias_params))).difference(set(filters_to_evolve)))
-        weight_params = self.params[self.next_layer_names[layer_name] + '.weight']
-        weights_not_evolved = weight_params.data[:, filters_not_to_evolve, ...].view(weight_params.shape[0], -1)
-        mean = torch.mean(weights_not_evolved, dim=1)
-        std = torch.std(weights_not_evolved, dim=1)
-        dest_shape = weight_params.data[:, filters_to_evolve, ...].shape
-        num_params_per_filter = int(np.prod(dest_shape[1:]))
-        mean_tensor = mean.unsqueeze(1).repeat(1, num_params_per_filter).view(dest_shape)
-        std_tensor = std.unsqueeze(1).repeat(1, num_params_per_filter).view(dest_shape)
-        rand_weights = tdist.Normal(mean_tensor, std_tensor).sample()
-        if weight_params.data.is_cuda:
-            rand_weights = rand_weights.cuda()
-        weight_params.data[:, filters_to_evolve, ...] = rand_weights
-        # Clear the momentum.
-        optimizer.state[weight_params]['momentum_buffer'][:, filters_to_evolve, ...] = 0
-
-    def boost_gradients(self, layer_name, filter_indices, rate):
-        bias_params = self.params[layer_name + '.bias']
-        weight_params = self.params[layer_name + '.weight']
-        bias_params.grad[filter_indices] *= rate
-        weight_params.grad[filter_indices, ...] *= rate
+        return self.params[self.find_last_param_of_layer(layer_name, 'bias')].shape[0]
 
 
 class MDNetVGGM(MDNet):

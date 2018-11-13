@@ -6,17 +6,17 @@ opts['use_gpu'] = True
 
 opts['random'] = False
 
-# opts['model_type'] = 'VGG-M'
-# opts['model_path'] = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
-#                                   '../models/mdnet_vot-otb.pth')
-opts['model_type'] = 'ResNet18'
+opts['model_type'] = 'VGG-M'
+opts['model_path'] = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
+                                  '../models/mdnet_vot-otb.pth')
+# opts['model_type'] = 'ResNet18'
 #opts['model_path'] = None
-opts['model_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../models/mdnet_resnet_imagenet.pth')
+# opts['model_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../models/mdnet_resnet_imagenet.pth')
 
-# opts['img_size'] = 107
-# opts['padding'] = 16
-opts['img_size'] = 48
-opts['padding'] = 4
+opts['img_size'] = 107
+opts['padding'] = 16
+# opts['img_size'] = 48
+# opts['padding'] = 4
 
 opts['batch_pos'] = 32
 opts['batch_neg'] = 96
@@ -46,7 +46,7 @@ opts['n_neg_update'] = 200
 opts['overlap_pos_update'] = [0.7, 1]
 opts['overlap_neg_update'] = [0, 0.3]
 
-opts['success_thr'] = -1
+opts['success_thr'] = 0
 opts['n_frames_short'] = 20
 opts['n_frames_long'] = 100
 opts['long_interval'] = 10
@@ -58,15 +58,14 @@ opts['lr_mult'] = {'conv4': 10, 'fc_ds': 10}
 # opts['ft_layers'] = ['fc']
 opts['ft_layers'] = ['conv4', 'fc']
 
-# opts['bbreg_layer'] = ['conv3']
-opts['bbreg_layer'] = ['conv4']
+opts['bbreg_layer'] = 'conv3'
+# opts['bbreg_layer'] = 'conv4'
 
 # Filter evolution options.
-opts['enable_fe'] = False
-# opts['fe_layers'] = ['fc4', 'fc5']
-opts['fe_layers'] = ['conv4', 'fc_ds']
+opts['enable_fe'] = True
+opts['fe_layers'] = ['fc4', 'fc5']
+opts['tr_loss_ratio'] = 1
+# opts['fe_layers'] = ['conv4', 'fc_ds']
 opts['grad_ratio_thresh'] = 0.01
-opts['lr_boost'] = 4096
-opts['loss_thresh'] = 0
-opts['init_bias'] = 0.00000001
+opts['converge_loss_thresh'] = 0
 opts['grad_dampen_factor'] = 0.9
