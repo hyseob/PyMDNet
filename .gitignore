@@ -1,8 +1,7 @@
+dataset
 result
 result_fig
 models/tmp
 tracking/tmp
-modules/*.pyc
-pretrain/*.pyc
-tracking/*.pyc
 models/imagenet-vgg-m.mat
+*.pyc

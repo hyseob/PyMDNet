@@ -24,10 +24,10 @@ opts['trans_f_expand'] = 1.2
 
 # training examples sampling
 opts['trans_f_pos'] = 0.1
-opts['scale_f_pos'] = 1.2
+opts['scale_f_pos'] = 1.1
 opts['trans_f_neg'] = 1.5
-opts['scale_f_neg'] = 1.5
-opts['aspect_f'] = 1.1
+opts['scale_f_neg'] = 1.2
+opts['aspect_f'] = 1.05
 
 # bounding box regression
 opts['n_bbreg'] = 1000
@@ -46,14 +46,14 @@ opts['overlap_neg_init'] = [0, 0.5]
 
 # online training
 opts['lr_update'] = 0.01
-opts['maxiter_update'] = 30
+opts['maxiter_update'] = 10
 opts['n_pos_update'] = 50
 opts['n_neg_update'] = 200
 opts['overlap_pos_update'] = [0.7, 1]
 opts['overlap_neg_update'] = [0, 0.3]
 
 # update criteria
-opts['success_thr'] = 0
+opts['success_thr'] = 0.4
 opts['n_frames_short'] = 20
 opts['n_frames_long'] = 100
 opts['long_interval'] = 10

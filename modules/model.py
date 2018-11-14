@@ -5,12 +5,12 @@ from collections import OrderedDict
 
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 import torch
+
 
 def append_params(params, module, prefix):
     for child in module.children():
-        for k,p in child._parameters.iteritems():
+        for k,p in child._parameters.items():
             if p is None: continue
             
             if isinstance(child, nn.BatchNorm2d):
@@ -21,26 +21,7 @@ def append_params(params, module, prefix):
             if name not in params:
                 params[name] = p
             else:
-                raise RuntimeError("Duplicated param name: %s" % (name))
-
-
-class LRN(nn.Module):
-    def __init__(self):
-        super(LRN, self).__init__()
-
-    def forward(self, x):
-        #
-        # x: N x C x H x W
-        pad = Variable(x.data.new(x.size(0), 1, 1, x.size(2), x.size(3)).zero_())
-        x_sq = (x**2).unsqueeze(dim=1)
-        x_tile = torch.cat((torch.cat((x_sq,pad,pad,pad,pad),2),
-                            torch.cat((pad,x_sq,pad,pad,pad),2),
-                            torch.cat((pad,pad,x_sq,pad,pad),2),
-                            torch.cat((pad,pad,pad,x_sq,pad),2),
-                            torch.cat((pad,pad,pad,pad,x_sq),2)),1)
-        x_sumsq = x_tile.sum(dim=1).squeeze(dim=1)[:,2:-2,:,:]
-        x = x / ((2.+0.0001*x_sumsq)**0.75)
-        return x
+                raise RuntimeError('Duplicated param name: {:s}'.format(name))
 
 
 class MDNet(nn.Module):
@@ -50,11 +31,11 @@ class MDNet(nn.Module):
         self.layers = nn.Sequential(OrderedDict([
                 ('conv1', nn.Sequential(nn.Conv2d(3, 96, kernel_size=7, stride=2),
                                         nn.ReLU(),
-                                        LRN(),
+                                        nn.LocalResponseNorm(2),
                                         nn.MaxPool2d(kernel_size=3, stride=2))),
                 ('conv2', nn.Sequential(nn.Conv2d(96, 256, kernel_size=5, stride=2),
                                         nn.ReLU(),
-                                        LRN(),
+                                        nn.LocalResponseNorm(2),
                                         nn.MaxPool2d(kernel_size=3, stride=2))),
                 ('conv3', nn.Sequential(nn.Conv2d(256, 512, kernel_size=3, stride=1),
                                         nn.ReLU())),
@@ -74,7 +55,7 @@ class MDNet(nn.Module):
             elif os.path.splitext(model_path)[1] == '.mat':
                 self.load_mat_model(model_path)
             else:
-                raise RuntimeError("Unkown model format: %s" % (model_path))
+                raise RuntimeError('Unkown model format: {:s}'.format(model_path))
         self.build_param_dict()
 
     def build_param_dict(self):
@@ -82,10 +63,10 @@ class MDNet(nn.Module):
         for name, module in self.layers.named_children():
             append_params(self.params, module, name)
         for k, module in enumerate(self.branches):
-            append_params(self.params, module, 'fc6_%d'%(k))
+            append_params(self.params, module, 'fc6_{:d}'.format(k))
 
     def set_learnable_params(self, layers):
-        for k, p in self.params.iteritems():
+        for k, p in self.params.items():
             if any([k.startswith(l) for l in layers]):
                 p.requires_grad = True
             else:
@@ -93,7 +74,7 @@ class MDNet(nn.Module):
  
     def get_learnable_params(self):
         params = OrderedDict()
-        for k, p in self.params.iteritems():
+        for k, p in self.params.items():
             if p.requires_grad:
                 params[k] = p
         return params
@@ -109,7 +90,7 @@ class MDNet(nn.Module):
             if run:
                 x = module(x)
                 if name == 'conv3':
-                    x = x.view(x.size(0),-1)
+                    x = x.view(x.size(0), -1)
                 if name == out_layer:
                     return x
         
@@ -117,7 +98,7 @@ class MDNet(nn.Module):
         if out_layer=='fc6':
             return x
         elif out_layer=='fc6_softmax':
-            return F.softmax(x)
+            return F.softmax(x, dim=1)
     
     def load_model(self, model_path):
         states = torch.load(model_path)
@@ -130,29 +111,26 @@ class MDNet(nn.Module):
         
         # copy conv weights
         for i in range(3):
-            weight, bias = mat_layers[i*4]['weights'].item()[0]
-            self.layers[i][0].weight.data = torch.from_numpy(np.transpose(weight, (3,2,0,1)))
-            self.layers[i][0].bias.data = torch.from_numpy(bias[:,0])
-
+            weight, bias = mat_layers[i * 4]['weights'].item()[0]
+            self.layers[i][0].weight.data = torch.from_numpy(np.transpose(weight, (3, 2, 0, 1)))
+            self.layers[i][0].bias.data = torch.from_numpy(bias[:, 0])
     
 
 class BinaryLoss(nn.Module):
-    def __init__(self):
-        super(BinaryLoss, self).__init__()
- 
-    def forward(self, pos_score, neg_score):
-        pos_loss = -F.log_softmax(pos_score)[:,1]
-        neg_loss = -F.log_softmax(neg_score)[:,0]
+    def forward(self, pos_score, neg_score, average=True):
+        pos_loss = -F.log_softmax(pos_score, dim=1)[:, 1]
+        neg_loss = -F.log_softmax(neg_score, dim=1)[:, 0]
         
         loss = pos_loss.sum() + neg_loss.sum()
+        if average:
+            loss /= pos_loss.size(0) + neg_loss.size(0)
         return loss
 
 
 class Accuracy():
     def __call__(self, pos_score, neg_score):
-        
-        pos_correct = (pos_score[:,1] > pos_score[:,0]).sum().float()
-        neg_correct = (neg_score[:,1] < neg_score[:,0]).sum().float()
+        pos_correct = (pos_score[:, 1] > pos_score[:, 0]).sum().float()
+        neg_correct = (neg_score[:, 1] < neg_score[:, 0]).sum().float()
         
         pos_acc = pos_correct / (pos_score.size(0) + 1e-8)
         neg_acc = neg_correct / (neg_score.size(0) + 1e-8)
@@ -162,9 +140,8 @@ class Accuracy():
 
 class Precision():
     def __call__(self, pos_score, neg_score):
-        
-        scores = torch.cat((pos_score[:,1], neg_score[:,1]), 0)
+        scores = torch.cat((pos_score[:, 1], neg_score[:, 1]), 0)
         topk = torch.topk(scores, pos_score.size(0))[1]
-        prec = (topk < pos_score.size(0)).float().sum() / (pos_score.size(0)+1e-8)
+        prec = (topk < pos_score.size(0)).float().sum() / (pos_score.size(0) + 1e-8)
         
         return prec.data[0]

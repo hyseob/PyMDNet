@@ -1,42 +1,11 @@
 import numpy as np
 from PIL import Image
 
-from utils import *
-
-def gen_samples(generator, bbox, n, overlap_range=None, scale_range=None):
-    
-    if overlap_range is None and scale_range is None:
-        return generator(bbox, n)
-    
-    else:
-        samples = None
-        remain = n
-        factor = 2
-        while remain > 0 and factor < 16:
-            samples_ = generator(bbox, remain*factor)
-
-            idx = np.ones(len(samples_), dtype=bool)
-            if overlap_range is not None:
-                r = overlap_ratio(samples_, bbox)
-                idx *= (r >= overlap_range[0]) * (r <= overlap_range[1])
-            if scale_range is not None:
-                s = np.prod(samples_[:,2:], axis=1) / np.prod(bbox[2:])
-                idx *= (s >= scale_range[0]) * (s <= scale_range[1])
-            
-            samples_ = samples_[idx,:]
-            samples_ = samples_[:min(remain, len(samples_))]
-            if samples is None:
-                samples = samples_
-            else:
-                samples = np.concatenate([samples, samples_])
-            remain = n - len(samples)
-            factor = factor*2
-        
-        return samples
+from .utils import *
 
 
 class SampleGenerator():
-    def __init__(self, type, img_size, trans_f=1, scale_f=1, aspect_f=None, valid=False):
+    def __init__(self, type, img_size, trans_f=1, scale_f=1, aspect_f=None, valid=True):
         self.type = type
         self.img_size = np.array(img_size) # (w, h)
         self.trans_f = trans_f
@@ -44,7 +13,7 @@ class SampleGenerator():
         self.aspect_f = aspect_f
         self.valid = valid
 
-    def __call__(self, bb, n):
+    def _gen_samples(self, bb, n):
         #
         # bb: target bbox (min_x,min_y,w,h)
         bb = np.array(bb, dtype='float32')
@@ -66,7 +35,7 @@ class SampleGenerator():
         elif self.type=='uniform':
             samples[:,:2] += self.trans_f * np.mean(bb[2:]) * (np.random.rand(n,2)*2-1)
             samples[:,2:] *= self.scale_f ** (np.random.rand(n,1)*2-1)
-        
+
         elif self.type=='whole':
             m = int(2*np.sqrt(n))
             xy = np.dstack(np.meshgrid(np.linspace(0,1,m),np.linspace(0,1,m))).reshape(-1,2)
@@ -87,9 +56,39 @@ class SampleGenerator():
 
         return samples
 
+    def __call__(self, bbox, n, overlap_range=None, scale_range=None):
+
+        if overlap_range is None and scale_range is None:
+            return self._gen_samples(bbox, n)
+
+        else:
+            samples = None
+            remain = n
+            factor = 2
+            while remain > 0 and factor < 16:
+                samples_ = self._gen_samples(bbox, remain * factor)
+
+                idx = np.ones(len(samples_), dtype=bool)
+                if overlap_range is not None:
+                    r = overlap_ratio(samples_, bbox)
+                    idx *= (r >= overlap_range[0]) * (r <= overlap_range[1])
+                if scale_range is not None:
+                    s = np.prod(samples_[:,2:], axis=1) / np.prod(bbox[2:])
+                    idx *= (s >= scale_range[0]) * (s <= scale_range[1])
+
+                samples_ = samples_[idx,:]
+                samples_ = samples_[:min(remain, len(samples_))]
+                if samples is None:
+                    samples = samples_
+                else:
+                    samples = np.concatenate([samples, samples_])
+                remain = n - len(samples)
+                factor = factor * 2
+
+            return samples
+
+    def set_type(self, type):
+        self.type = type
+
     def set_trans_f(self, trans_f):
         self.trans_f = trans_f
-    
-    def get_trans_f(self):
-        return self.trans_f
-

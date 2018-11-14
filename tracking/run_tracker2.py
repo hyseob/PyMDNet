@@ -4,8 +4,9 @@ import sys
 import time
 import argparse
 import json
-from PIL import Image
+import importlib
 import matplotlib.pyplot as plt
+from PIL import Image
 
 import torch
 import torch.utils.data as data
@@ -16,7 +17,6 @@ from modules.sample_generator import *
 from modules.model import *
 from data_prov import *
 from bbreg import *
-from options import *
 from gen_config import *
 
 np.random.seed(123)
@@ -39,7 +39,7 @@ def forward_samples(model, image, samples, out_layer='conv3'):
     return feats
 
 
-def set_optimizer(model, lr_base, lr_mult=opts['lr_mult'], momentum=opts['momentum'], w_decay=opts['w_decay']):
+def set_optimizer(model, lr_base, lr_mult, momentum, w_decay):
     params = model.get_learnable_params()
     param_list = []
     for k, p in params.items():
@@ -138,8 +138,8 @@ def run_mdnet(img_list, init_bbox, gt=None, savefig_dir='', display=False):
 
     # Init criterion and optimizer 
     criterion = BinaryLoss()
-    init_optimizer = set_optimizer(model, opts['lr_init'])
-    update_optimizer = set_optimizer(model, opts['lr_update'])
+    init_optimizer = set_optimizer(model, opts['lr_init'], opts['lr_mult'], opts['momentum'], opts['w_decay'])
+    update_optimizer = set_optimizer(model, opts['lr_update'], opts['lr_mult'], opts['momentum'], opts['w_decay'])
 
     tic = time.time()
     # Load first image
@@ -318,8 +318,10 @@ def run_mdnet(img_list, init_bbox, gt=None, savefig_dir='', display=False):
 
 
 if __name__ == "__main__":
+    
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('-o', '--option', default='options', help='input seq')
     parser.add_argument('-s', '--seq', default='', help='input seq')
     parser.add_argument('-j', '--json', default='', help='input json')
     parser.add_argument('-f', '--savefig', action='store_true')
@@ -327,6 +329,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     assert args.seq != '' or args.json != ''
+    
+    opts = importlib.import_module(args.option).opts
 
     # Generate sequence config
     img_list, init_bbox, gt, savefig_dir, display, result_path = gen_config(args)
