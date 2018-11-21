@@ -6,7 +6,7 @@ import cv2
 def overlap_ratio(rect1, rect2):
     '''
     Compute overlap ratio between two rects
-    - rect: 1d array of [x,y,w,h] or 
+    - rect: 1d array of [x,y,w,h] or
             2d array of N x [x,y,w,h]
     '''
 
@@ -26,7 +26,7 @@ def overlap_ratio(rect1, rect2):
     return iou
 
 
-def crop_image2(img, bbox, img_size=107, padding=16, valid=False):
+def crop_image2(img, bbox, img_size=107, padding=16):
     x, y, w, h = np.array(bbox, dtype='float32')
 
     cx, cy = x + w/2, y + h/2
@@ -38,19 +38,19 @@ def crop_image2(img, bbox, img_size=107, padding=16, valid=False):
     # List of transformation matrices
     matrices = []
 
-    # Define translation matrix to move patch center to origin
+    # Translation matrix to move patch center to origin
     translation_matrix = np.asarray([[1, 0, -cx],
                                      [0, 1, -cy],
                                      [0, 0, 1]], dtype=np.float32)
     matrices.append(translation_matrix)
 
-    # Define scaling matrix according to base size and aspect ratio
+    # Scaling matrix according to image size
     scaling_matrix = np.asarray([[img_size / w, 0, 0],
                                  [0, img_size / h, 0],
                                  [0, 0, 1]], dtype=np.float32)
     matrices.append(scaling_matrix)
 
-    # Define translation matrix to move patch center from origin
+    # Translation matrix to move patch center from origin
     revert_t_matrix = np.asarray([[1, 0, img_size / 2],
                                   [0, 1, img_size / 2],
                                   [0, 0, 1]], dtype=np.float32)
@@ -66,19 +66,12 @@ def crop_image2(img, bbox, img_size=107, padding=16, valid=False):
                                 matrix,
                                 (img_size, img_size),
                                 borderValue=128)
-    patch = patch.astype('float32')
-    
-    #alpha = 1 + (np.random.rand() * 0.1 - 0.05)
-    #beta = 255 * (np.random.rand() * 0.1 - 0.05)
-    #patch = alpha * (patch.astype('float32') - 128) + beta + 128
-    #patch = np.clip(patch, 0, 255)
-
     return patch
 
 
 def crop_image(img, bbox, img_size=107, padding=16, valid=False):
     # This function is deprecated in favor of crop_image2
-    
+
     x,y,w,h = np.array(bbox, dtype='float32')
 
     half_w, half_h = w / 2, h / 2
@@ -89,13 +82,13 @@ def crop_image(img, bbox, img_size=107, padding=16, valid=False):
         pad_h = padding * h / img_size
         half_w += pad_w
         half_h += pad_h
-        
+
     img_h, img_w, _ = img.shape
     min_x = int(center_x - half_w + 0.5)
     min_y = int(center_y - half_h + 0.5)
     max_x = int(center_x + half_w + 0.5)
     max_y = int(center_y + half_h + 0.5)
-    
+
     if valid:
         min_x = max(0, min_x)
         min_y = max(0, min_y)
@@ -110,10 +103,10 @@ def crop_image(img, bbox, img_size=107, padding=16, valid=False):
         min_y_val = max(0, min_y)
         max_x_val = min(img_w, max_x)
         max_y_val = min(img_h, max_y)
-        
+
         cropped = 128 * np.ones((max_y - min_y, max_x - min_x, 3), dtype='uint8')
         cropped[min_y_val - min_y:max_y_val - min_y, min_x_val - min_x:max_x_val - min_x, :] \
             = img[min_y_val:max_y_val, min_x_val:max_x_val, :]
-    
+
     scaled = imresize(cropped, (img_size, img_size))
     return scaled

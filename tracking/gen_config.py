@@ -8,9 +8,8 @@ def gen_config(args):
     if args.seq != '':
         # generate config from a sequence name
 
-        seq_home = 'dataset/OTB'
-        save_home = 'result_fig'
-        result_home = 'result'
+        seq_home = 'datasets/OTB'
+        result_home = 'results'
 
         seq_name = args.seq
         img_dir = os.path.join(seq_home, seq_name, 'img')
@@ -19,14 +18,15 @@ def gen_config(args):
         img_list = os.listdir(img_dir)
         img_list.sort()
         img_list = [os.path.join(img_dir, x) for x in img_list]
-
-        gt = np.loadtxt(gt_path, delimiter=',')
+        
+        with open(gt_path) as f:
+            gt = np.loadtxt((x.replace('\t',',') for x in f), delimiter=',')
         init_bbox = gt[0]
 
-        savefig_dir = os.path.join(save_home, seq_name)
         result_dir = os.path.join(result_home, seq_name)
         if not os.path.exists(result_dir):
             os.makedirs(result_dir)
+        savefig_dir = os.path.join(result_dir, 'figs')
         result_path = os.path.join(result_dir, 'result.json')
 
     elif args.json != '':

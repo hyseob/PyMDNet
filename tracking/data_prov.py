@@ -5,7 +5,7 @@ from PIL import Image
 import torch
 import torch.utils.data as data
 
-from modules.utils import *
+from modules.utils import crop_image2
 
 
 class RegionExtractor():
@@ -41,9 +41,9 @@ class RegionExtractor():
     next = __next__
 
     def extract_regions(self, index):
-        regions = np.zeros((len(index), self.crop_size, self.crop_size, 3), dtype='float32')
+        regions = np.zeros((len(index), self.crop_size, self.crop_size, 3), dtype='uint8')
         for i, sample in enumerate(self.samples[index]):
             regions[i] = crop_image2(self.image, sample, self.crop_size, self.padding)
-        regions = regions.transpose(0,3,1,2)
-        regions = regions - 128.
+        regions = regions.transpose(0, 3, 1, 2)
+        regions = regions.astype('float32') - 128.
         return regions

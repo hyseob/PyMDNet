@@ -12,18 +12,19 @@ import torch.utils.data as data
 import torch.optim as optim
 
 sys.path.insert(0, '.')
-from modules.sample_generator import *
-from modules.model import *
-from data_prov import *
-from bbreg import *
-from options import *
-from gen_config import *
+from modules.model import MDNet, BinaryLoss, set_optimizer
+from modules.sample_generator import SampleGenerator
+from modules.utils import overlap_ratio
+from data_prov import RegionExtractor
+from bbreg import BBRegressor
+from options import opts
+from gen_config import gen_config
 
 np.random.seed(123)
 torch.manual_seed(456)
 torch.cuda.manual_seed(789)
 
-#@profile
+
 def forward_samples(model, image, samples, out_layer='conv3'):
     model.eval()
     extractor = RegionExtractor(image, samples, opts['img_size'], opts['padding'], opts['batch_test'])
@@ -37,19 +38,6 @@ def forward_samples(model, image, samples, out_layer='conv3'):
         else:
             feats = torch.cat((feats, feat.detach().clone()), 0)
     return feats
-
-
-def set_optimizer(model, lr_base, lr_mult=opts['lr_mult'], momentum=opts['momentum'], w_decay=opts['w_decay']):
-    params = model.get_learnable_params()
-    param_list = []
-    for k, p in params.items():
-        lr = lr_base
-        for l, m in lr_mult.items():
-            if k.startswith(l):
-                lr = lr_base * m
-        param_list.append({'params': [p], 'lr':lr})
-    optimizer = optim.SGD(param_list, lr = lr, momentum=momentum, weight_decay=w_decay)
-    return optimizer
 
 
 def train(model, criterion, optimizer, pos_feats, neg_feats, maxiter, in_layer='fc4'):
@@ -69,7 +57,8 @@ def train(model, criterion, optimizer, pos_feats, neg_feats, maxiter, in_layer='
     pos_pointer = 0
     neg_pointer = 0
 
-    for iter in range(maxiter):
+    losses = []
+    for i in range(maxiter):
 
         # select pos idx
         pos_next = pos_pointer + batch_pos
@@ -97,7 +86,7 @@ def train(model, criterion, optimizer, pos_feats, neg_feats, maxiter, in_layer='
                 if start==0:
                     neg_cand_score = score.detach()[:, 1].clone()
                 else:
-                    neg_cand_score = torch.cat((neg_cand_score, score.detach()[:,1].clone()), 0)
+                    neg_cand_score = torch.cat((neg_cand_score, score.detach()[:, 1].clone()), 0)
 
             _, top_idx = neg_cand_score.topk(batch_neg)
             batch_neg_feats = batch_neg_feats[top_idx]
@@ -111,12 +100,17 @@ def train(model, criterion, optimizer, pos_feats, neg_feats, maxiter, in_layer='
         loss = criterion(pos_score, neg_score)
         model.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), opts['grad_clip'])
+        if 'grad_clip' in opts:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), opts['grad_clip'])
         optimizer.step()
+        
+        losses.append(loss.item())
+        mavg_loss = sum(losses[-10:]) / len(losses[-10:])
+        #print('Iter %d, Loss %.4f' % (i, sum(losses[-10:]) / len(losses[-10:])))
+        if i + 1 >= 10 and mavg_loss < 0.001:
+            break
 
-        #print('Iter {:d}, Loss {:.4f}'.format(iter, loss.item()))
 
-#@profile
 def run_mdnet(img_list, init_bbox, gt=None, savefig_dir='', display=False):
 
     # Init bbox
@@ -138,29 +132,30 @@ def run_mdnet(img_list, init_bbox, gt=None, savefig_dir='', display=False):
 
     # Init criterion and optimizer 
     criterion = BinaryLoss()
-    init_optimizer = set_optimizer(model, opts['lr_init'])
-    update_optimizer = set_optimizer(model, opts['lr_update'])
+    init_optimizer = set_optimizer(model, opts['lr_init'], opts['lr_mult'])
+    update_optimizer = set_optimizer(model, opts['lr_update'], opts['lr_mult'])
 
     tic = time.time()
     # Load first image
     image = Image.open(img_list[0]).convert('RGB')
 
     # Train bbox regressor
-    bbreg_examples = SampleGenerator('uniform', image.size, opts['trans_f_bbreg'], opts['scale_f_bbreg'], opts['aspect_f'])(
+    bbreg_examples = SampleGenerator('uniform', image.size, opts['trans_f_bbreg'],
+            opts['scale_f_bbreg'], opts['aspect_f_bbreg'])(
                         target_bbox, opts['n_bbreg'], opts['overlap_bbreg'], opts['scale_bbreg'])
     bbreg_feats = forward_samples(model, image, bbreg_examples)
     bbreg = BBRegressor(image.size)
     bbreg.train(bbreg_feats, bbreg_examples, target_bbox)
-
+    
     # Draw pos/neg samples
     pos_examples = SampleGenerator('gaussian', image.size, opts['trans_f_pos'], opts['scale_f_pos'], opts['aspect_f'])(
                         target_bbox, opts['n_pos_init'], opts['overlap_pos_init'])
 
     neg_examples = np.concatenate([
                     SampleGenerator('uniform', image.size, opts['trans_f_neg'], opts['scale_f_neg'], opts['aspect_f'])(
-                        target_bbox, opts['n_neg_init']//2, opts['overlap_neg_init']),
+                        target_bbox, int(opts['n_neg_init'] * 0.3), opts['overlap_neg_init']),
                     SampleGenerator('whole', image.size)(
-                        target_bbox, opts['n_neg_init']//2, opts['overlap_neg_init'])])
+                        target_bbox, int(opts['n_neg_init'] * 0.7), opts['overlap_neg_init'])])
     neg_examples = np.random.permutation(neg_examples)
 
     # Extract pos/neg features
@@ -202,6 +197,9 @@ def run_mdnet(img_list, init_bbox, gt=None, savefig_dir='', display=False):
         rect = plt.Rectangle(tuple(result_bb[0, :2]), result_bb[0, 2], result_bb[0, 3],
                              linewidth=3, edgecolor="#ff0000", zorder=1, fill=False)
         ax.add_patch(rect)
+        rect2 = plt.Rectangle(tuple(result[0, :2]), result[0, 2], result[0, 3],
+                             linewidth=3, edgecolor="#0000ff", zorder=1, fill=False)
+        ax.add_patch(rect2)
 
         if display:
             plt.pause(.01)
@@ -219,34 +217,37 @@ def run_mdnet(img_list, init_bbox, gt=None, savefig_dir='', display=False):
         # Estimate target bbox
         samples = sample_generator(target_bbox, opts['n_samples'])
         sample_scores = forward_samples(model, image, samples, out_layer='fc6')
-        top_scores, top_idx = sample_scores[:,1].topk(5)
+        top_scores, top_idx = sample_scores[:,1].topk(opts['topk'])
         top_idx = top_idx.cpu()
         target_score = top_scores.mean()
-        target_bbox = samples[top_idx].mean(axis=0)
+        target_bbox = samples[top_idx]
+        if top_idx.shape[0] > 1:
+            target_bbox = target_bbox.mean(axis=0)
 
         success = target_score > opts['success_thr']
 
         # Expand search area at failure
         if success:
             sample_generator.set_trans_f(opts['trans_f'])
-            sample_generator.set_type('gaussian')
+            #sample_generator.set_type('gaussian')
         else:
-            sample_generator.set_trans_f(opts['trans_f_expand'])
-            sample_generator.set_type('uniform')
+            sample_generator.expand_trans_f(opts['trans_f_limit'])
+            #sample_generator.set_type('uniform')
 
         # Bbox regression
         if success:
             bbreg_samples = samples[top_idx]
+            if top_idx.shape[0] == 1:
+                bbreg_samples = bbreg_samples[None,:]
             bbreg_feats = forward_samples(model, image, bbreg_samples)
             bbreg_samples = bbreg.predict(bbreg_feats, bbreg_samples)
             bbreg_bbox = bbreg_samples.mean(axis=0)
         else:
             bbreg_bbox = target_bbox
-
         # Copy previous result at failure
-        if not success:
-            target_bbox = result[i - 1]
-            bbreg_bbox = result_bb[i - 1]
+        #if not success:
+        #    target_bbox = result[i - 1]
+        #    bbreg_bbox = result_bb[i - 1]
 
         # Save result
         result[i] = target_bbox
@@ -254,32 +255,34 @@ def run_mdnet(img_list, init_bbox, gt=None, savefig_dir='', display=False):
 
         # Data collect
         if success:
-            # Draw pos/neg samples
             pos_examples = pos_generator(target_bbox, opts['n_pos_update'], opts['overlap_pos_update'])
-            neg_examples = neg_generator(target_bbox, opts['n_neg_update'], opts['overlap_neg_update'])
-
-            # Extract pos/neg features
             pos_feats = forward_samples(model, image, pos_examples)
-            neg_feats = forward_samples(model, image, neg_examples)
             pos_feats_all.append(pos_feats)
-            neg_feats_all.append(neg_feats)
             if len(pos_feats_all) > opts['n_frames_long']:
                 del pos_feats_all[0]
+
+            neg_examples = neg_generator(target_bbox, opts['n_neg_update'], opts['overlap_neg_update'])
+            neg_feats = forward_samples(model, image, neg_examples)
+            neg_feats_all.append(neg_feats)
             if len(neg_feats_all) > opts['n_frames_short']:
                 del neg_feats_all[0]
 
+            with torch.no_grad():
+                max_neg_score = model(neg_feats, in_layer='fc4')[:, 1].max()
+
         # Short term update
-        if not success:
+        #if not success:
+        if not success or max_neg_score > target_score:
             nframes = min(opts['n_frames_short'], len(pos_feats_all))
             pos_data = torch.cat(pos_feats_all[-nframes:], 0)
             neg_data = torch.cat(neg_feats_all, 0)
-            train(model, criterion, update_optimizer, pos_data, neg_data, opts['maxiter_update'])
+            train(model, criterion, update_optimizer, pos_data, neg_data, opts['maxiter_update_short'])
 
         # Long term update
         elif i % opts['long_interval'] == 0:
             pos_data = torch.cat(pos_feats_all, 0)
             neg_data = torch.cat(neg_feats_all, 0)
-            train(model, criterion, update_optimizer, pos_data, neg_data, opts['maxiter_update'])
+            train(model, criterion, update_optimizer, pos_data, neg_data, opts['maxiter_update_long'])
 
         spf = time.time() - tic
         spf_total += spf
@@ -297,11 +300,15 @@ def run_mdnet(img_list, init_bbox, gt=None, savefig_dir='', display=False):
             rect.set_width(result_bb[i, 2])
             rect.set_height(result_bb[i, 3])
 
+            rect2.set_xy(result[i, :2])
+            rect2.set_width(result[i, 2])
+            rect2.set_height(result[i, 3])
+
             if display:
                 plt.pause(.01)
                 plt.draw()
             if savefig:
-                fig.savefig(os.path.join(savefig_dir, '%04d.jpg'%(i)), dpi=dpi)
+                fig.savefig(os.path.join(savefig_dir, '{:04d}.jpg'.format(i)), dpi=dpi)
 
         if gt is None:
             print('Frame {:d}/{:d}, Score {:.3f}, Time {:.3f}'

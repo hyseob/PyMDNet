@@ -2,7 +2,7 @@ import sys
 from sklearn.linear_model import Ridge
 import numpy as np
 
-from modules.utils import *
+from modules.utils import overlap_ratio
 
 
 class BBRegressor():
@@ -17,7 +17,7 @@ class BBRegressor():
         X = X.cpu().numpy()
         bbox = np.copy(bbox)
         gt = np.copy(gt)
-        
+
         if gt.ndim==1:
             gt = gt[None,:]
 
@@ -30,7 +30,19 @@ class BBRegressor():
         bbox = bbox[idx]
 
         Y = self.get_examples(bbox, gt)
-        
+
+        mu = Y.mean(axis=0)
+        Y = Y - mu
+        S = Y.transpose() @ Y / Y.shape[0]
+        D, V = np.linalg.eig(S)
+        T = V @ np.diag(1./np.sqrt(D + 1e-6)) @ V.transpose()
+        T_inv = V @ np.diag(np.sqrt(D + 1e-6)) @ V.transpose()
+        Y = Y @ T
+
+        self.mu = mu
+        self.T = T
+        self.T_inv = T_inv
+
         self.model.fit(X, Y)
 
     def predict(self, X, bbox):
@@ -38,24 +50,25 @@ class BBRegressor():
         bbox_ = np.copy(bbox)
 
         Y = self.model.predict(X)
-    
+        Y = Y @ self.T_inv + self.mu
+
         bbox_[:,:2] = bbox_[:,:2] + bbox_[:,2:]/2
         bbox_[:,:2] = Y[:,:2] * bbox_[:,2:] + bbox_[:,:2]
         bbox_[:,2:] = np.exp(Y[:,2:]) * bbox_[:,2:]
         bbox_[:,:2] = bbox_[:,:2] - bbox_[:,2:]/2
-        
-        r = overlap_ratio(bbox, bbox_)
-        s = np.prod(bbox[:,2:], axis=1) / np.prod(bbox_[:,2:], axis=1)
-        idx = (r >= self.overlap_range[0]) * (r <= self.overlap_range[1]) * \
-              (s >= self.scale_range[0]) * (s <= self.scale_range[1])
-        idx = np.logical_not(idx)
-        bbox_[idx] = bbox[idx]
- 
+
+        #r = overlap_ratio(bbox, bbox_)
+        #s = np.prod(bbox[:,2:], axis=1) / np.prod(bbox_[:,2:], axis=1)
+        #idx = (r >= self.overlap_range[0]) * (r <= self.overlap_range[1]) * \
+        #      (s >= self.scale_range[0]) * (s <= self.scale_range[1])
+        #idx = np.logical_not(idx)
+        #bbox_[idx] = bbox[idx]
+
         bbox_[:,:2] = np.maximum(bbox_[:,:2], 0)
         bbox_[:,2:] = np.minimum(bbox_[:,2:], self.img_size - bbox[:,:2])
 
         return bbox_
-    
+
     def get_examples(self, bbox, gt):
         bbox[:,:2] = bbox[:,:2] + bbox[:,2:]/2
         gt[:,:2] = gt[:,:2] + gt[:,2:]/2

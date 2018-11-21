@@ -1,7 +1,6 @@
-dataset
-result
-result_fig
-models/tmp
-tracking/tmp
-models/imagenet-vgg-m.mat
+dataset/OTB
+dataset/VOT
+models/*.mat
+results
 *.pyc
+*.swp
