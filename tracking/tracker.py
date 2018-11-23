@@ -331,10 +331,10 @@ class Tracker:
             # compute target-relevance loss
             if opts['enable_fe']:
                 tr_loss = opts['tr_loss_ratio'] * sum([
-                    torch.sum(torch.sum(torch.cat([-pos_outputs[layer], neg_outputs[layer]],
-                                                  dim=0),
-                                        dim=0)
-                              * self.tr_loss_mask[layer])
+                    torch.sum(
+                        (torch.exp(-torch.max(pos_outputs[layer], dim=0)[0])
+                         + torch.exp(torch.max(neg_outputs[layer], dim=0)[0]) - 1)
+                        * self.tr_loss_mask[layer])
                     for layer in fe_layers
                 ])
                 tr_loss.backward()

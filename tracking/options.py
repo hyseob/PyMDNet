@@ -10,7 +10,7 @@ opts['model_type'] = 'VGG-M'
 opts['model_path'] = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
                                   '../models/mdnet_vot-otb.pth')
 # opts['model_type'] = 'ResNet18'
-#opts['model_path'] = None
+# opts['model_path'] = None
 # opts['model_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../models/mdnet_resnet_imagenet.pth')
 
 opts['img_size'] = 107
@@ -64,7 +64,7 @@ opts['bbreg_layer'] = 'conv3'
 # Filter evolution options.
 opts['enable_fe'] = True
 opts['fe_layers'] = ['fc4', 'fc5']
-opts['tr_loss_ratio'] = 1
+opts['tr_loss_ratio'] = opts['batch_pos'] + opts['batch_neg']
 # opts['fe_layers'] = ['conv4', 'fc_ds']
 opts['grad_ratio_thresh'] = 0.01
 opts['converge_loss_thresh'] = 0

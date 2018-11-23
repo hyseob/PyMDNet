@@ -11,3 +11,4 @@ models/imagenet-vgg-m.mat
 __pycache__
 .DS_Store
 *.pyc
+*.icloud
