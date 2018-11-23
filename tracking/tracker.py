@@ -328,21 +328,6 @@ class Tracker:
                 for idx, gradient_sq in enumerate(gradients_sq):
                     filters_in_layer[idx].report_gradient_sq(gradient_sq)
 
-            # compute target-relevance loss
-            if opts['enable_fe']:
-                tr_loss = opts['tr_loss_ratio'] * sum([
-                    torch.sum(
-                        (torch.exp(-torch.max(pos_outputs[layer], dim=0)[0])
-                         + torch.exp(torch.max(neg_outputs[layer], dim=0)[0]) - 1)
-                        * self.tr_loss_mask[layer])
-                    for layer in fe_layers
-                ])
-                tr_loss.backward()
-
-            # optimize
-            torch.nn.utils.clip_grad_norm(self.model.parameters(), opts['grad_clip'])
-            optimizer.step()
-
             # evolve filters
             if opts['enable_fe']:
                 for layer in fe_layers:
@@ -366,6 +351,21 @@ class Tracker:
                             print('Evolved {} filters in {}: {}'.format(len(filters_to_evolve),
                                                                         layer,
                                                                         filters_to_evolve))
+
+            # compute target-relevance loss
+            if opts['enable_fe']:
+                tr_loss = opts['tr_loss_ratio'] * sum([
+                    torch.sum(
+                        (torch.exp(-torch.max(pos_outputs[layer], dim=0)[0])
+                         + torch.exp(torch.max(neg_outputs[layer], dim=0)[0]) - 1)
+                        * self.tr_loss_mask[layer])
+                    for layer in fe_layers
+                ])
+                tr_loss.backward()
+
+            # optimize
+            torch.nn.utils.clip_grad_norm(self.model.parameters(), opts['grad_clip'])
+            optimizer.step()
 
             final_loss = cls_loss.data[0]
             # print("Iter %d, Loss %.4f" % (iter, final_loss))

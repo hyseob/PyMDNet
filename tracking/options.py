@@ -68,4 +68,4 @@ opts['tr_loss_ratio'] = opts['batch_pos'] + opts['batch_neg']
 # opts['fe_layers'] = ['conv4', 'fc_ds']
 opts['grad_ratio_thresh'] = 0.01
 opts['converge_loss_thresh'] = 0
-opts['grad_dampen_factor'] = 0.9
+opts['grad_dampen_factor'] = 0.8
