@@ -18,27 +18,6 @@ if not opts['random']:
     torch.cuda.manual_seed(789)
 
 
-class FilterMeta:
-    def __init__(self):
-        self.evolved = False
-        self.gradient_sq_acc = 0
-        self.gradient_sq_potential = 0
-
-    def gradient_norm(self):
-        return self.gradient_sq_potential and np.sqrt(self.gradient_sq_acc) / self.gradient_sq_potential
-
-    def report_gradient_sq(self, grad_sq):
-        self.gradient_sq_potential += 1
-        self.gradient_sq_acc += grad_sq
-
-    def report_evolution(self):
-        self.evolved = True
-
-    def dampen_gradient_rec(self, factor):
-        self.gradient_sq_potential *= factor
-        self.gradient_sq_potential *= factor
-
-
 class Tracker:
     def __init__(self, init_bbox, first_frame, gpu, verbose=False):
         self.verbose = verbose
@@ -61,25 +40,12 @@ class Tracker:
         # Probe the structure of the network.
         self.first_learnable_layer, self.last_fixed_layer = \
             self.model.set_learnable_params(opts['ft_layers'])
-        self.filters_meta = {
-            param_name: [FilterMeta() for _ in range(self.model.get_num_filters(param_name))]
-            for param_name in self.model.ft_layers
-        }
-
-        # Initialize the target-relevance loss mask.
-        self.tr_loss_mask = {
-            param_name: torch.autograd.Variable(torch.zeros(self.model.get_num_filters(param_name)),
-                                                requires_grad=False)
-            for param_name in self.model.ft_layers
-        }
 
         # Use GPU.
         self.use_gpu = opts['use_gpu'] and gpu >= 0
         if self.use_gpu:
             torch.cuda.set_device(gpu)
             self.model = self.model.cuda()
-            for layer_name in self.tr_loss_mask:
-                self.tr_loss_mask[layer_name] = self.tr_loss_mask[layer_name].cuda()
 
         # Init criterion and optimizer
         self.criterion = ClassificationLoss()
@@ -269,14 +235,6 @@ class Tracker:
                     fe_layers.append(layer)
                     break
 
-        grad_ratio_thresh = opts['grad_ratio_thresh']
-
-        # dampen previous recorded gradients
-        dampen_factor = opts['grad_dampen_factor']
-        for layer in fe_layers:
-            for filter_meta in self.filters_meta[layer]:
-                filter_meta.dampen_gradient_rec(dampen_factor)
-
         for iteration in range(maxiter):
             # select pos filter_idx
             pos_next = pos_pointer + batch_pos
@@ -316,58 +274,34 @@ class Tracker:
             pos_score = pos_outputs['score']
             neg_score = neg_outputs['score']
 
-            # compute classificaiton loss
+            # compute classification loss
             cls_loss = criterion(pos_score, neg_score)
-
-            # record gradients
-            self.model.zero_grad()
-            cls_loss.backward(retain_graph=True)
-            for layer in fe_layers:
-                gradients_sq = torch.pow(self.model.probe_filters_gradients(layer), 2).cpu()
-                filters_in_layer = self.filters_meta[layer]
-                for idx, gradient_sq in enumerate(gradients_sq):
-                    filters_in_layer[idx].report_gradient_sq(gradient_sq)
-
-            # evolve filters
-            if opts['enable_fe']:
-                for layer in fe_layers:
-                    filters_in_layer = self.filters_meta[layer]
-                    gradient_norm_sum = 0
-                    for filter_meta in filters_in_layer:
-                        gradient_norm_sum += filter_meta.gradient_norm()
-                    mean_gradient_norm = gradient_norm_sum / len(filters_in_layer)
-                    filters_to_evolve = list(
-                        filter(lambda filter_idx:
-                               not filters_in_layer[filter_idx].evolved and
-                               filters_in_layer[filter_idx].gradient_norm() < mean_gradient_norm * grad_ratio_thresh,
-                               range(len(filters_in_layer)))
-                    )
-
-                    if len(filters_to_evolve) > 0:
-                        self.tr_loss_mask[layer][filters_to_evolve] = 1
-                        for filter_idx in filters_to_evolve:
-                            filters_in_layer[filter_idx].report_evolution()
-                        if self.verbose:
-                            print('Evolved {} filters in {}: {}'.format(len(filters_to_evolve),
-                                                                        layer,
-                                                                        filters_to_evolve))
 
             # compute target-relevance loss
             if opts['enable_fe']:
-                tr_loss = opts['tr_loss_ratio'] * sum([
+                tr_loss = sum([
                     torch.sum(
-                        (torch.exp(-torch.max(pos_outputs[layer], dim=0)[0])
-                         + torch.exp(torch.max(neg_outputs[layer], dim=0)[0]) - 1)
-                        * self.tr_loss_mask[layer])
+                        torch.exp(-torch.max(pos_outputs[layer], dim=0)[0])
+                        + torch.mean(torch.topk(neg_outputs[layer],
+                                                int(neg_outputs[layer].shape[0] * 0.9),
+                                                dim=0,
+                                                largest=False,
+                                                sorted=False)[0],
+                                     dim=0))
                     for layer in fe_layers
                 ])
-                tr_loss.backward()
+                tr_loss_ratio = np.exp(-cls_loss.data[0]) * (1 - iteration / (maxiter - 1))
+                loss = cls_loss + tr_loss * opts['tr_loss_base_ratio'] * tr_loss_ratio
+            else:
+                loss = cls_loss
 
             # optimize
+            self.model.zero_grad()
+            loss.backward()
             torch.nn.utils.clip_grad_norm(self.model.parameters(), opts['grad_clip'])
             optimizer.step()
 
             final_loss = cls_loss.data[0]
-            # print("Iter %d, Loss %.4f" % (iter, final_loss))
+            # print("Iter %d, Loss %.4f" % (iteration, final_loss))
 
         return final_loss
