@@ -97,6 +97,15 @@ class MDNet(nn.Module):
                 else:
                     raise RuntimeError("Duplicated param name: %s" % (name))
 
+    def to_device(self, gpu):
+        if gpu == 'all':
+            self.layers = nn.DataParallel(self.layers.cuda())
+            self.branches = nn.DataParallel(self.branches.cuda())
+        elif int(gpu) >= 0:
+            self.layers = self.layers.cuda(int(gpu))
+            self.branches = self.branches.cuda(int(gpu))
+        return self
+
     def build_layers(self, model_path):
         raise NotImplementedError
 

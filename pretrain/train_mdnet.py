@@ -54,7 +54,10 @@ def train_mdnet(gpu):
     # Init dataset.
     print('Loading training data...')
     with open(opts['data_path'], 'rb') as fp:
-        training_data = pickle.load(fp)
+        try:
+            training_data = pickle.load(fp)
+        except UnicodeDecodeError:
+            training_data = pickle.load(fp, encoding='latin1')
     K = len(training_data)
     print('Training MDNet with {} domains...'.format(K))
 
@@ -65,8 +68,7 @@ def train_mdnet(gpu):
     else:
         model = MDNetVGGM(opts['init_model_path'], K)
     if opts['use_gpu']:
-        torch.cuda.set_device(int(gpu))
-        model = model.cuda()
+        model = model.cuda().to_device(gpu)
     model.set_learnable_params(opts['ft_layers'])
 
     print('Creating datasets...')
