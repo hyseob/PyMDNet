@@ -64,7 +64,7 @@ opts['bbreg_layer'] = 'conv3'
 # Filter evolution options.
 opts['enable_fe'] = True
 opts['fe_layers'] = ['fc4', 'fc5']
-opts['tr_loss_base_ratio'] = 1
+opts['tr_loss_base_ratio'] = 0
 # opts['fe_layers'] = ['conv4', 'fc_ds']
 opts['grad_ratio_thresh'] = 0.01
 opts['converge_loss_thresh'] = 0
