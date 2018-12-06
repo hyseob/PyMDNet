@@ -157,7 +157,12 @@ class MDNet(nn.Module):
     def load_model(self, model_path):
         states = torch.load(model_path)
         shared_layers = states['shared_layers']
+        branch_layers = states['branch_layers']
         self.layers.load_state_dict(shared_layers, strict=False)
+        try:
+            self.branches.load_state_dict(branch_layers, strict=True)
+        except:
+            pass
 
     def load_mat_model(self, matfile):
         mat = scipy.io.loadmat(matfile)
