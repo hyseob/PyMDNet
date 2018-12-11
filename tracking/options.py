@@ -6,11 +6,17 @@ opts['use_gpu'] = True
 
 opts['random'] = False
 
+opts['model_type'] = 'VGG-M'
 opts['model_path'] = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
                                   '../models/mdnet_vot-otb.pth')
+# opts['model_type'] = 'ResNet18'
+# opts['model_path'] = None
+# opts['model_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../models/mdnet_resnet_imagenet.pth')
 
 opts['img_size'] = 107
 opts['padding'] = 16
+# opts['img_size'] = 48
+# opts['padding'] = 4
 
 opts['batch_pos'] = 32
 opts['batch_neg'] = 96
@@ -48,5 +54,18 @@ opts['long_interval'] = 10
 opts['w_decay'] = 0.0005
 opts['momentum'] = 0.9
 opts['grad_clip'] = 10
-opts['lr_mult'] = {'fc6': 10}
-opts['ft_layers'] = ['fc']
+opts['lr_mult'] = {'conv4': 10, 'fc_ds': 10}
+# opts['ft_layers'] = ['fc']
+opts['ft_layers'] = ['conv4', 'fc']
+
+opts['bbreg_layer'] = 'conv3'
+# opts['bbreg_layer'] = 'conv4'
+
+# Filter evolution options.
+opts['enable_fe'] = True
+opts['fe_layers'] = ['fc4', 'fc5']
+opts['tr_loss_base_ratio'] = 0
+# opts['fe_layers'] = ['conv4', 'fc_ds']
+opts['grad_ratio_thresh'] = 0.01
+opts['converge_loss_thresh'] = 0
+opts['grad_dampen_factor'] = 0.1

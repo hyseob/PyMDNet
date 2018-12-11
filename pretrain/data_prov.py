@@ -3,6 +3,7 @@ import sys
 
 import torch
 import torch.utils.data as data
+from PIL import Image
 
 sys.path.insert(0, '../modules')
 from sample_generator import *

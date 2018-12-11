@@ -1,5 +1,6 @@
 result
 result_fig
+result_video
 models/tmp
 tracking/tmp
 modules/*.pyc
@@ -10,3 +11,4 @@ models/imagenet-vgg-m.mat
 __pycache__
 .DS_Store
 *.pyc
+*.icloud

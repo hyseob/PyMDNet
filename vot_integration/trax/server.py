@@ -67,6 +67,9 @@ class Server(MessageParser):
             env_in = int(os.environ.get("TRAX_IN", "-1"))
             env_out = int(os.environ.get("TRAX_OUT", "-1"))
 
+            if env_in > 0:
+                print('Using file stream {} for input and {} for output.'.format(env_in, env_out))
+
             super(Server, self).__init__(
                 os.fdopen(env_in, 'r') if env_in > 0 else fin,
                 os.fdopen(env_out, 'w') if env_out > 0 else fout
@@ -88,8 +91,9 @@ class Server(MessageParser):
             :returns: A request structure
             :rtype: trax.server.Request
         """
-
+        print("Trax server reading message...")
         message = self._read_message()
+        print("Trax received message of type {}!".format(message.type))
         if message.type == None:
             return Request(MessageType.ERROR, None, None, None)
 

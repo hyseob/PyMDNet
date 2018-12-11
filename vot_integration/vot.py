@@ -156,8 +156,10 @@ class VOT(object):
                 del self._image
                 return image
 
+            print("Waiting for Trax...")
             request = self._trax.wait()
 
+            print("Trax returned request of type {}!".format(request.type))
             if request.type == 'frame':
                 return str(request.image)
             else:

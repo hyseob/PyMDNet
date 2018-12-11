@@ -1,19 +1,19 @@
 import os
 import sys
 import time
-import numpy as np
 
-from PIL import Image
 import matplotlib
+import numpy as np
+from PIL import Image
 
 matplotlib.use('agg')
 from matplotlib import pyplot as plt
 import cv2
 import torch
+
 modules_path = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
                             '../modules')
 sys.path.insert(0, modules_path)
-from model import MDNet
 
 modules_path = os.path.join(os.path.dirname(os.path.join(os.path.realpath(__file__))),
                             '../modules')
@@ -21,6 +21,7 @@ sys.path.insert(0, modules_path)
 
 from tracker import Tracker
 from utils import overlap_ratio
+from options import *
 
 
 def fig2data(fig):
@@ -66,7 +67,8 @@ def run_mdnet(img_list, init_bbox, gt=None,
               savefig_dir='', savevideo_dir='',
               display=False,
               seq_name='unknown',
-              gpu='0'):
+              gpu='0',
+              verbose=False):
     # Init bbox
     target_bbox = np.array(init_bbox)
     result_bb = np.zeros((len(img_list), 4))
@@ -77,17 +79,22 @@ def run_mdnet(img_list, init_bbox, gt=None,
     image = Image.open(img_list[0]).convert('RGB')
 
     # Initialize the tracker
-    tracker = Tracker(init_bbox, image, int(gpu))
+    tracker = Tracker(init_bbox, image, int(gpu), verbose=verbose)
 
     spf_total = time.time() - tic
 
     # Display
     savefig = savefig_dir != ''
     savevideo = savevideo_dir != ''
-    video_writer = cv2.VideoWriter(os.path.join(savevideo_dir, seq_name + '.avi'),
-                                   cv2.VideoWriter.fourcc('M', 'J', 'P', 'G'),
-                                   25,
-                                   image.size) if savevideo else None
+    if savevideo:
+        fn = os.path.join(savevideo_dir, seq_name + '.avi')
+        video_writer = cv2.VideoWriter(fn,
+                                       cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),
+                                       25,
+                                       image.size)
+        print('Saving result video to {}.'.format(fn))
+    else:
+        video_writer = None
     if display or savefig or savevideo:
         dpi = 80.0
         figsize = (image.size[0] / dpi, image.size[1] / dpi)
@@ -130,7 +137,7 @@ def run_mdnet(img_list, init_bbox, gt=None,
         spf_total += spf
 
         # Display
-        if display or savefig:
+        if display or savefig or savevideo:
             im.set_data(image)
 
             rect.set_xy(result_bb[i, :2])
@@ -154,17 +161,20 @@ def run_mdnet(img_list, init_bbox, gt=None,
             if savevideo:
                 video_writer.write(fig2cv2(fig))
 
-        if gt is None:
-            print("Frame %d/%d, Score %.3f, Time %.3f" % \
-                  (i, len(img_list), target_score, spf))
-        else:
+        if gt is not None:
             ratio = overlap_ratio(gt[i], result_bb[i])[0]
             overlap_ratios.append(ratio)
             print("Frame %d/%d, Overlap %.3f, Score %.3f, Time %.3f" %
                   (i, len(img_list), ratio, target_score, spf))
+        else:
+            print("Frame %d/%d, Score %.3f, Time %.3f" % \
+                  (i, len(img_list), target_score, spf))
 
     save_PATH = '../models/latest.pth'
     torch.save(tracker.model.state_dict(), save_PATH)
+
+    if savevideo:
+        video_writer.release()
 
     if gt is not None:
         dir = os.path.join('analysis', 'data', seq_name)
@@ -175,6 +185,39 @@ def run_mdnet(img_list, init_bbox, gt=None,
         print('Writing overlap ratios to {}'.format(overlap_ratio_fn))
         with open(overlap_ratio_fn, 'w') as f:
             f.write(','.join(map(str, overlap_ratios)))
+
+    # if verbose:
+    #     for layer_name in opts['fe_layers']:
+    #         weight_norms = tracker.model.probe_filter_weight_norms(layer_name)
+    #
+    #         weight_norm_sum_evolved = 0
+    #         weight_norm_sum_not_evolved = 0
+    #         grad_norm_sum_evolved = 0
+    #         grad_norm_sum_not_evolved = 0
+    #         filter_evolved_cnt = 0
+    #         filter_not_evolved_cnt = 0
+    #
+    #         for idx, filter_meta in enumerate(tracker.filters_meta[layer_name]):
+    #             if filter_meta.evolution_cnt > 0:
+    #                 weight_norm_sum_evolved += weight_norms[idx]
+    #                 grad_norm_sum_evolved += filter_meta.gradient_norm()
+    #                 filter_evolved_cnt += 1
+    #             else:
+    #                 weight_norm_sum_not_evolved += weight_norms[idx]
+    #                 grad_norm_sum_not_evolved += filter_meta.gradient_norm()
+    #                 filter_not_evolved_cnt += 1
+    #
+    #         print('Average weights of {} filters with/without evolution: {}/{}'.format(
+    #             layer_name,
+    #             filter_evolved_cnt and weight_norm_sum_evolved / filter_evolved_cnt,
+    #             filter_not_evolved_cnt and weight_norm_sum_not_evolved / filter_not_evolved_cnt
+    #         ))
+    #
+    #         print('Average gradient norm of {} filters with/without evolution: {}/{}'.format(
+    #             layer_name,
+    #             filter_evolved_cnt and grad_norm_sum_evolved / filter_evolved_cnt,
+    #             filter_not_evolved_cnt and grad_norm_sum_not_evolved / filter_not_evolved_cnt
+    #         ))
 
     fps = len(img_list) / spf_total
     return result_bb, fps

@@ -12,7 +12,7 @@ with open(seqlist_path, 'r') as fp:
 
 data = {}
 for i, seq in enumerate(seq_list):
-    img_list = sorted([p for p in os.listdir(seq_home + seq) if os.path.splitext(p)[1] == '.jpg'])
+    img_list = sorted([os.path.abspath(p) for p in os.listdir(seq_home + seq) if os.path.splitext(p)[1] == '.jpg'])
     gt = np.loadtxt(seq_home + seq + '/groundtruth.txt', delimiter=',')
 
     assert len(img_list) == len(gt), "Lengths do not match!!"
