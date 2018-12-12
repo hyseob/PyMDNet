@@ -25,7 +25,7 @@ If you're using this code for your research, please cite:
 ### Tracking
 ```bash
  cd tracking
- python run_tracker.py -s DragonBaby [-d (display fig)] [-f (save fig)]
+ python otb_demo.py -s DragonBaby [-d (display fig)] [-f (save fig)]
 ```
  - You can provide a sequence configuration in two ways (see tracking/gen_config.py):
    - ```python run_tracker.py -s [seq name]```
@@ -39,3 +39,10 @@ If you're using this code for your research, please cite:
  python prepro_data.py
  python train_mdnet.py
 ```
+
+### Test with VOT-Toolkit
+
+- Download the VOT-Toolkit following the [instructions](http://votchallenge.net/howto/).
+- Create a workspace named "mdnet".
+- Copy the [tracker_mdnet.m](vot_integration/tracker_mdnet.m) to the workspace to replace the generated one.
+- If you are using PyTorch 0.4.x, please downgrade it to 0.3.1, as 0.4.x has compatibility problem with Matlab.
