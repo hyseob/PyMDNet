@@ -9,7 +9,7 @@ opts['data_path'] = 'pretrain/data/vot-otb.pkl'
 
 # model path
 opts['init_model_path'] = 'models/imagenet-vgg-m.mat'
-opts['model_path'] = 'models/mdnet_vot-otb_e50_b128_c1_d2_hnm.pth'
+opts['model_path'] = 'models2/mdnet_vot-otb_e50_b128_c1_d2_l5.pth'
 
 # input size
 opts['img_size'] = 107
@@ -19,14 +19,12 @@ opts['padding'] = 16
 opts['batch_frames'] = 8
 opts['batch_pos'] = 32
 opts['batch_neg'] = 96
-opts['batch_neg_cand'] = 1024
-opts['batch_test'] = 256
 
 # training examples sampling
 opts['trans_f_pos'] = 0.1
 opts['scale_f_pos'] = 1.2
-opts['trans_f_neg'] = 1.5
-opts['scale_f_neg'] = 1.2
+opts['trans_f_neg'] = 1
+opts['scale_f_neg'] = 1.5
 opts['aspect_f'] = 1.1
 
 # training examples

@@ -45,11 +45,11 @@ class MDNet(nn.Module):
         self.layers = nn.Sequential(OrderedDict([
                 ('conv1', nn.Sequential(nn.Conv2d(3, 96, kernel_size=7, stride=2),
                                         nn.ReLU(inplace=True),
-                                        nn.LocalResponseNorm(2, k=2),
+                                        nn.LocalResponseNorm(5, k=2),
                                         nn.MaxPool2d(kernel_size=3, stride=2))),
                 ('conv2', nn.Sequential(nn.Conv2d(96, 256, kernel_size=5, stride=2),
                                         nn.ReLU(inplace=True),
-                                        nn.LocalResponseNorm(2, k=2),
+                                        nn.LocalResponseNorm(5, k=2),
                                         nn.MaxPool2d(kernel_size=3, stride=2))),
                 ('conv3', nn.Sequential(nn.Conv2d(256, 512, kernel_size=3, stride=1),
                                         nn.ReLU(inplace=True))),

@@ -93,4 +93,4 @@ class SampleGenerator():
         self.trans_f = trans_f
 
     def expand_trans_f(self, trans_f_limit):
-        self.trans_f = min(self.trans_f * 1.1, trans_f_limit)
+        self.trans_f = min(self.trans_f * 1.2, trans_f_limit)

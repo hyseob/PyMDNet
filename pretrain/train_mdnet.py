@@ -10,10 +10,9 @@ from data_prov import RegionDataset
 from options import opts
 from modules.model import MDNet, set_optimizer, BinaryLoss, Accuracy
 
-np.random.seed(123)
-torch.manual_seed(456)
-torch.cuda.manual_seed(789)
-
+#np.random.seed(123)
+#torch.manual_seed(456)
+#torch.cuda.manual_seed(789)
 
 def train_mdnet():
 

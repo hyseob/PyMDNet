@@ -4,9 +4,7 @@ from collections import OrderedDict
 opts = OrderedDict()
 opts['use_gpu'] = True
 
-#opts['model_path'] = 'models2/mdnet_vot-otb_e50_b128_c10_d2.pth'
-#opts['model_path'] = 'models/mdnet_vot-otb.pth'
-opts['model_path'] = 'models3/mdnet_vot-otb_e50_b128_c1_d2.pth'
+opts['model_path'] = 'models2/mdnet_vot-otb_e50_b128_c1_d2_l5.pth'
 
 # input size
 opts['img_size'] = 107
@@ -42,7 +40,7 @@ opts['aspect_f_bbreg'] = 1.2
 
 # initial training
 opts['lr_init'] = 0.001
-opts['maxiter_init'] = 200
+opts['maxiter_init'] = 100
 opts['n_pos_init'] = 500
 opts['n_neg_init'] = 5000
 opts['overlap_pos_init'] = [0.7, 1]
@@ -59,8 +57,9 @@ opts['overlap_neg_update'] = [0, 0.3]
 
 # update criteria
 opts['success_thr'] = 0
-opts['n_frames_short'] = 20
 opts['n_frames_long'] = 100
+opts['n_frames_short'] = 20
+opts['n_frames_neg'] = 20
 opts['long_interval'] = 10
 
 # training 

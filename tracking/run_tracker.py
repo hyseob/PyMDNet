@@ -20,9 +20,9 @@ from bbreg import BBRegressor
 from options import opts
 from gen_config import gen_config
 
-np.random.seed(123)
-torch.manual_seed(456)
-torch.cuda.manual_seed(789)
+#np.random.seed(123)
+#torch.manual_seed(456)
+#torch.cuda.manual_seed(789)
 
 
 def forward_samples(model, image, samples, out_layer='conv3'):
@@ -264,7 +264,7 @@ def run_mdnet(img_list, init_bbox, gt=None, savefig_dir='', display=False):
             neg_examples = neg_generator(target_bbox, opts['n_neg_update'], opts['overlap_neg_update'])
             neg_feats = forward_samples(model, image, neg_examples)
             neg_feats_all.append(neg_feats)
-            if len(neg_feats_all) > opts['n_frames_short']:
+            if len(neg_feats_all) > opts['n_frames_neg']:
                 del neg_feats_all[0]
 
             with torch.no_grad():
