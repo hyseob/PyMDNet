@@ -44,8 +44,7 @@ overlap_neg_init: [0, 0.5]
 
 # online training
 lr_update: 0.001
-maxiter_update_short: 15
-maxiter_update_long: 15
+maxiter_update: 15
 n_pos_update: 50
 n_neg_update: 200
 overlap_pos_update: [0.7, 1]

@@ -257,13 +257,13 @@ def run_mdnet(img_list, init_bbox, gt=None, savefig_dir='', display=False):
             nframes = min(opts['n_frames_short'], len(pos_feats_all))
             pos_data = torch.cat(pos_feats_all[-nframes:], 0)
             neg_data = torch.cat(neg_feats_all, 0)
-            train(model, criterion, update_optimizer, pos_data, neg_data, opts['maxiter_update_short'])
+            train(model, criterion, update_optimizer, pos_data, neg_data, opts['maxiter_update'])
 
         # Long term update
         elif i % opts['long_interval'] == 0:
             pos_data = torch.cat(pos_feats_all, 0)
             neg_data = torch.cat(neg_feats_all, 0)
-            train(model, criterion, update_optimizer, pos_data, neg_data, opts['maxiter_update_long'])
+            train(model, criterion, update_optimizer, pos_data, neg_data, opts['maxiter_update'])
 
         torch.cuda.empty_cache()
         spf = time.time() - tic
