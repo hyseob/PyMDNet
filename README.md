@@ -18,8 +18,8 @@ If you're using this code for your research, please cite:
  
 ## Prerequisites
 - python 3.6+
-- [PyTorch 1.0+](http://pytorch.org/) and its dependencies 
 - opencv 3.0+
+- [PyTorch 1.0+](http://pytorch.org/) and its dependencies 
 - for GPU support: a GPU with ~3G memory
 
 ## Usage
@@ -39,3 +39,8 @@ If you're using this code for your research, please cite:
  python pretrain/prepro_vot.py
  python pretrain/train_mdnet.py
 ```
+
+## Third-party re-implementations
+- Tensorflow, by @AlexQie: [code](https://github.com/AlexQie/MDNet)
+- Tensorflow, by @zhyj3038: [code](https://github.com/zhyj3038/PyMDNet)
+- MatconvNet, by @ZjjConan: [code](https://github.com/ZjjConan/Optimized-MDNet)
