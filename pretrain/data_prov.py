@@ -10,7 +10,6 @@ from modules.utils import crop_image2
 
 class RegionDataset(data.Dataset):
     def __init__(self, img_list, gt, opts):
-
         self.img_list = np.asarray(img_list)
         self.gt = gt
 
@@ -28,10 +27,10 @@ class RegionDataset(data.Dataset):
         self.pointer = 0
 
         image = Image.open(self.img_list[0]).convert('RGB')
-        self.pos_generator = SampleGenerator('gaussian', image.size,
-                opts['trans_f_pos'], opts['scale_f_pos'], opts['aspect_f'])
-        self.neg_generator = SampleGenerator('gaussian', image.size,
-                opts['trans_f_neg'], opts['scale_f_neg'], opts['aspect_f'])
+        self.pos_generator = SampleGenerator('uniform', image.size,
+                opts['trans_pos'], opts['scale_pos'])
+        self.neg_generator = SampleGenerator('uniform', image.size,
+                opts['trans_neg'], opts['scale_neg'])
 
     def __iter__(self):
         return self
@@ -45,8 +44,8 @@ class RegionDataset(data.Dataset):
             idx = np.concatenate((idx, self.index[:next_pointer]))
         self.pointer = next_pointer
 
-        pos_regions = np.empty((0, 3, self.crop_size, self.crop_size))
-        neg_regions = np.empty((0, 3, self.crop_size, self.crop_size))
+        pos_regions = np.empty((0, 3, self.crop_size, self.crop_size), dtype='float32')
+        neg_regions = np.empty((0, 3, self.crop_size, self.crop_size), dtype='float32')
         for i, (img_path, bbox) in enumerate(zip(self.img_list[idx], self.gt[idx])):
             image = Image.open(img_path).convert('RGB')
             image = np.asarray(image)
@@ -59,8 +58,8 @@ class RegionDataset(data.Dataset):
             pos_regions = np.concatenate((pos_regions, self.extract_regions(image, pos_examples)), axis=0)
             neg_regions = np.concatenate((neg_regions, self.extract_regions(image, neg_examples)), axis=0)
 
-        pos_regions = torch.from_numpy(pos_regions).float()
-        neg_regions = torch.from_numpy(neg_regions).float()
+        pos_regions = torch.from_numpy(pos_regions)
+        neg_regions = torch.from_numpy(neg_regions)
         return pos_regions, neg_regions
 
     next = __next__

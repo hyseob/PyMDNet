@@ -9,19 +9,15 @@ from modules.utils import crop_image2
 
 
 class RegionExtractor():
-    def __init__(self, image, samples, crop_size, padding, batch_size, shuffle=False):
-
+    def __init__(self, image, samples, crop_size, padding, batch_size):
         self.image = np.asarray(image)
         self.samples = samples
         self.crop_size = crop_size
         self.padding = padding
         self.batch_size = batch_size
-        self.shuffle = shuffle
 
         self.index = np.arange(len(samples))
         self.pointer = 0
-
-        self.mean = self.image.mean(0).mean(0).astype('float32')
 
     def __iter__(self):
         return self
@@ -34,7 +30,6 @@ class RegionExtractor():
             next_pointer = min(self.pointer + self.batch_size, len(self.samples))
             index = self.index[self.pointer:next_pointer]
             self.pointer = next_pointer
-
             regions = self.extract_regions(index)
             regions = torch.from_numpy(regions)
             return regions

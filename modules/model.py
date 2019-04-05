@@ -25,8 +25,11 @@ def append_params(params, module, prefix):
                 raise RuntimeError('Duplicated param name: {:s}'.format(name))
 
 
-def set_optimizer(model, lr_base, lr_mult, momentum=0.9, w_decay=0.0005):
-    params = model.get_learnable_params()
+def set_optimizer(model, lr_base, lr_mult, train_all=False, momentum=0.9, w_decay=0.0005):
+    if train_all:
+        params = model.get_all_params()
+    else:
+        params = model.get_learnable_params()
     param_list = []
     for k, p in params.items():
         lr = lr_base
@@ -45,16 +48,15 @@ class MDNet(nn.Module):
         self.layers = nn.Sequential(OrderedDict([
                 ('conv1', nn.Sequential(nn.Conv2d(3, 96, kernel_size=7, stride=2),
                                         nn.ReLU(inplace=True),
-                                        nn.LocalResponseNorm(5, k=2),
+                                        nn.LocalResponseNorm(2),
                                         nn.MaxPool2d(kernel_size=3, stride=2))),
                 ('conv2', nn.Sequential(nn.Conv2d(96, 256, kernel_size=5, stride=2),
                                         nn.ReLU(inplace=True),
-                                        nn.LocalResponseNorm(5, k=2),
+                                        nn.LocalResponseNorm(2),
                                         nn.MaxPool2d(kernel_size=3, stride=2))),
                 ('conv3', nn.Sequential(nn.Conv2d(256, 512, kernel_size=3, stride=1),
                                         nn.ReLU(inplace=True))),
-                ('fc4',   nn.Sequential(
-                                        nn.Linear(512 * 3 * 3, 512),
+                ('fc4',   nn.Sequential(nn.Linear(512 * 3 * 3, 512),
                                         nn.ReLU(inplace=True))),
                 ('fc5',   nn.Sequential(nn.Dropout(0.5),
                                         nn.Linear(512, 512),
@@ -63,7 +65,11 @@ class MDNet(nn.Module):
         self.branches = nn.ModuleList([nn.Sequential(nn.Dropout(0.5),
                                                      nn.Linear(512, 2)) for _ in range(K)])
 
-        for m in self.modules():
+        for m in self.layers.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0.1)
+        for m in self.branches.modules():
             if isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, 0, 0.01)
                 nn.init.constant_(m.bias, 0)
@@ -97,11 +103,15 @@ class MDNet(nn.Module):
             if p.requires_grad:
                 params[k] = p
         return params
+    
+    def get_all_params(self):
+        params = OrderedDict()
+        for k, p in self.params.items():
+            params[k] = p
+        return params
 
     def forward(self, x, k=0, in_layer='conv1', out_layer='fc6'):
-        #
         # forward model from in_layer to out_layer
-
         run = False
         for name, module in self.layers.named_children():
             if name == in_layer:
@@ -135,7 +145,7 @@ class MDNet(nn.Module):
             self.layers[i][0].bias.data = torch.from_numpy(bias[:, 0])
 
 
-class BinaryLoss(nn.Module):
+class BCELoss(nn.Module):
     def forward(self, pos_score, neg_score, average=True):
         pos_loss = -F.log_softmax(pos_score, dim=1)[:, 1]
         neg_loss = -F.log_softmax(neg_score, dim=1)[:, 0]

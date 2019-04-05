@@ -5,12 +5,12 @@ from .utils import overlap_ratio
 
 
 class SampleGenerator():
-    def __init__(self, type_, img_size, trans_f=1, scale_f=1, aspect_f=None, valid=False):
+    def __init__(self, type_, img_size, trans=1, scale=1, aspect=None, valid=False):
         self.type = type_
         self.img_size = np.array(img_size) # (w, h)
-        self.trans_f = trans_f
-        self.scale_f = scale_f
-        self.aspect_f = aspect_f
+        self.trans = trans
+        self.scale = scale
+        self.aspect = aspect
         self.valid = valid
 
     def _gen_samples(self, bb, n):
@@ -23,25 +23,25 @@ class SampleGenerator():
         samples = np.tile(sample[None, :], (n ,1))
 
         # vary aspect ratio
-        if self.aspect_f is not None:
-            ratio = np.random.rand(n, 1) * 2 - 1
-            samples[:, 2:] *= self.aspect_f ** np.concatenate([ratio, -ratio], axis=1)
+        if self.aspect is not None:
+            ratio = np.random.rand(n, 2) * 2 - 1
+            samples[:, 2:] *= self.aspect ** ratio
 
         # sample generation
         if self.type == 'gaussian':
-            samples[:, :2] += self.trans_f * np.mean(bb[2:]) * np.clip(0.5 * np.random.randn(n, 2), -1, 1)
-            samples[:, 2:] *= self.scale_f ** np.clip(0.5 * np.random.randn(n, 1), -1, 1)
+            samples[:, :2] += self.trans * np.mean(bb[2:]) * np.clip(0.5 * np.random.randn(n, 2), -1, 1)
+            samples[:, 2:] *= self.scale ** np.clip(0.5 * np.random.randn(n, 1), -1, 1)
 
         elif self.type == 'uniform':
-            samples[:, :2] += self.trans_f * np.mean(bb[2:]) * (np.random.rand(n, 2) * 2 - 1)
-            samples[:, 2:] *= self.scale_f ** (np.random.rand(n, 1) * 2 - 1)
+            samples[:, :2] += self.trans * np.mean(bb[2:]) * (np.random.rand(n, 2) * 2 - 1)
+            samples[:, 2:] *= self.scale ** (np.random.rand(n, 1) * 2 - 1)
 
         elif self.type == 'whole':
             m = int(2 * np.sqrt(n))
             xy = np.dstack(np.meshgrid(np.linspace(0, 1, m), np.linspace(0, 1, m))).reshape(-1, 2)
             xy = np.random.permutation(xy)[:n]
             samples[:, :2] = bb[2:] / 2 + xy * (self.img_size - bb[2:] / 2 - 1)
-            samples[:, 2:] *= self.scale_f ** (np.random.rand(n, 1) * 2 - 1)
+            samples[:, 2:] *= self.scale ** (np.random.rand(n, 1) * 2 - 1)
 
         # adjust bbox range
         samples[:, 2:] = np.clip(samples[:, 2:], 10, self.img_size - 10)
@@ -89,8 +89,8 @@ class SampleGenerator():
     def set_type(self, type_):
         self.type = type_
 
-    def set_trans_f(self, trans_f):
-        self.trans_f = trans_f
+    def set_trans(self, trans):
+        self.trans = trans
 
-    def expand_trans_f(self, trans_f_limit):
-        self.trans_f = min(self.trans_f * 1.2, trans_f_limit)
+    def expand_trans(self, trans_limit):
+        self.trans = min(self.trans * 1.1, trans_limit)

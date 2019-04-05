@@ -1,0 +1,62 @@
+use_gpu: true
+
+# model path
+model_path: "models/mdnet_vot-otb.pth"
+
+# input size
+img_size: 107
+padding: 16
+
+# batch size
+batch_pos: 32
+batch_neg: 96
+batch_neg_cand: 1024
+batch_test: 256
+
+# candidates sampling
+n_samples: 256
+trans: 0.6
+scale: 1.05
+trans_limit: 1.5
+
+# training examples sampling
+trans_pos: 0.1
+scale_pos: 1.3
+trans_neg_init: 1
+scale_neg_init: 1.6
+trans_neg: 2
+scale_neg: 1.3
+
+# bounding box regression
+n_bbreg: 1000
+overlap_bbreg: [0.6, 1]
+trans_bbreg: 0.3
+scale_bbreg: 1.6
+aspect_bbreg: 1.1
+
+# initial training
+lr_init: 0.0005
+maxiter_init: 50
+n_pos_init: 500
+n_neg_init: 5000
+overlap_pos_init: [0.7, 1]
+overlap_neg_init: [0, 0.5]
+
+# online training
+lr_update: 0.001
+maxiter_update_short: 15
+maxiter_update_long: 15
+n_pos_update: 50
+n_neg_update: 200
+overlap_pos_update: [0.7, 1]
+overlap_neg_update: [0, 0.3]
+
+# update criteria
+long_interval: 10
+n_frames_long: 100
+n_frames_short: 30
+
+# training 
+grad_clip: 10
+lr_mult: {'fc6': 10}
+ft_layers: ['fc']
