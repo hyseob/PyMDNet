@@ -19,7 +19,8 @@ If you're using this code for your research, please cite:
 ## Prerequisites
 - python 3.6+
 - [PyTorch 1.0+](http://pytorch.org/) and its dependencies 
-- for GPU support: a GPU with ~0.3G memory
+- opencv 3.0+
+- for GPU support: a GPU with ~3G memory
 
 ## Usage
 
