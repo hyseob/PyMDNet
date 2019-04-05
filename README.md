@@ -18,7 +18,7 @@ If you're using this code for your research, please cite:
  
 ## Prerequisites
 - python 3.6+
-- pyTorch 1.0.0+
+- [PyTorch 1.0+](http://pytorch.org/) and its dependencies 
 - for GPU support: a GPU with ~0.3G memory
 
 ## Usage
