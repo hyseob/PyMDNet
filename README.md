@@ -3,7 +3,7 @@
 by [Hyeonseob Nam](https://kr.linkedin.com/in/hyeonseob-nam/) and [Bohyung Han](http://cvlab.postech.ac.kr/~bhhan/) at POSTECH
 
 ## Introduction
-PyTorch implementation of MDNet, which runs at ~5fps with a single CPU thread and a single GPU (1080Ti)
+PyTorch implementation of MDNet, which runs at ~5fps with a single CPU core and a single GPU (GTX 1080 Ti).
 #### [[Project]](http://cvlab.postech.ac.kr/research/mdnet/) [[Paper]](https://arxiv.org/abs/1510.07945) [[Matlab code]](https://github.com/HyeonseobNam/MDNet)
 
 If you're using this code for your research, please cite:
