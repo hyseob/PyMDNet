@@ -34,7 +34,7 @@ If you're using this code for your research, please cite:
  
 ### Pretraining
  - Download [VGG-M](http://www.vlfeat.org/matconvnet/models/imagenet-vgg-m.mat) (matconvnet model) and save as "models/imagenet-vgg-m.mat"
- - Download [VOT](http://www.votchallenge.net/) datasets into "datasets/vot201x"
+ - Download [VOT](http://www.votchallenge.net/) datasets into "datasets/VOT/vot201x"
 ``` bash
  python pretrain/prepro_vot.py
  python pretrain/train_mdnet.py
