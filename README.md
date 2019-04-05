@@ -3,7 +3,7 @@
 by [Hyeonseob Nam](https://kr.linkedin.com/in/hyeonseob-nam/) and [Bohyung Han](http://cvlab.postech.ac.kr/~bhhan/) at POSTECH
 
 ## Introduction
-PyTorch implementation of MDNet tracker, which runs at 4.5fps with a single thread and a single GPU (1080Ti)
+PyTorch implementation of MDNet, which runs at ~5fps with a single thread and a single GPU (1080Ti)
 #### [[Project]](http://cvlab.postech.ac.kr/research/mdnet/) [[Paper]](https://arxiv.org/abs/1510.07945) [[Matlab code]](https://github.com/HyeonseobNam/MDNet)
 
 If you're using this code for your research, please cite:
