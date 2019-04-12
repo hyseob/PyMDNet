@@ -43,4 +43,4 @@ If you're using this code for your research, please cite:
 ## Third-party re-implementations
 - Tensorflow, by @AlexQie: [code](https://github.com/AlexQie/MDNet)
 - Tensorflow, by @zhyj3038: [code](https://github.com/zhyj3038/PyMDNet)
-- MatconvNet, by @ZjjConan: [code](https://github.com/ZjjConan/Optimized-MDNet)
+- MatconvNet (optimized), by @ZjjConan: [code](https://github.com/ZjjConan/Optimized-MDNet)
