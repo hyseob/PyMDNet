@@ -4,7 +4,7 @@ by [Hyeonseob Nam](https://kr.linkedin.com/in/hyeonseob-nam/) and [Bohyung Han](
 
 **Update (April, 2019)**
 - Migration to python 3.6 & pyTorch 1.0
-- Improving tracking efficiency (~5fps)
+- Efficiency improvement (~5fps)
 - Code refactoring
 
 ## Introduction
