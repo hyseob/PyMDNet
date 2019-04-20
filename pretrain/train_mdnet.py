@@ -89,5 +89,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     opts = yaml.safe_load(open('pretrain/options_{}.yaml'.format(args.dataset),'r'))
-
-    train_mdnet()
+    train_mdnet(opts)
