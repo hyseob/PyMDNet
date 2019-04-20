@@ -79,10 +79,6 @@ def train_mdnet(opts):
             model = model.cpu()
         states = {'shared_layers': model.layers.state_dict()}
         torch.save(states, opts['model_path'])
-        if (i + 1) % 10 == 0:
-            model_name, ext = os.path.splitext(opts['model_path'])
-            model_path = model_name + '_epoch' + str(i) + ext
-            torch.save(states, model_path)
         if opts['use_gpu']:
             model = model.cuda()
 
