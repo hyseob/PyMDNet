@@ -5,7 +5,13 @@ by [Hyeonseob Nam](https://kr.linkedin.com/in/hyeonseob-nam/) and [Bohyung Han](
 **Update (April, 2019)**
 - Migration to python 3.6 & pyTorch 1.0
 - Efficiency improvement (~5fps)
+- ImagNet-VID pretraining
 - Code refactoring
+
+## Results
+<img src="./figs/tb100-precision.png" width="400"> <img src="./figs/tb100-success.png" width="400">
+<img src="./figs/tb50-precision.png" width="400"> <img src="./figs/tb50-success.png" width="400">
+<img src="./figs/otb2013-precision.png" width="400"> <img src="./figs/otb2013-success.png" width="400">
 
 ## Introduction
 PyTorch implementation of MDNet, which runs at ~5fps with a single CPU core and a single GPU (GTX 1080 Ti).
@@ -39,11 +45,18 @@ If you're using this code for your research, please cite:
  
 ### Pretraining
  - Download [VGG-M](http://www.vlfeat.org/matconvnet/models/imagenet-vgg-m.mat) (matconvnet model) and save as "models/imagenet-vgg-m.mat"
- - Download [VOT](http://www.votchallenge.net/) datasets into "datasets/VOT/vot201x"
-``` bash
- python pretrain/prepro_vot.py
- python pretrain/train_mdnet.py
-```
+ - Pretraining on VOT (exclude OTB)
+   - Download [VOT](http://www.votchallenge.net/) datasets into "datasets/VOT/vot201x"
+    ``` bash
+     python pretrain/prepro_vot.py
+     python pretrain/train_mdnet.py -d vot
+    ```
+ - Pretraining on ImageNet-VID
+   - Download ImageNet-VID dataset into "datasets/ILSVRC"
+    ``` bash
+     python pretrain/prepro_imagenet.py
+     python pretrain/train_mdnet.py -d imagenet
+    ```
 
 ## Third-party re-implementations
 - Tensorflow, by @AlexQie: [code](https://github.com/AlexQie/MDNet)
