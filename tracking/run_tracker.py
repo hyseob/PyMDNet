@@ -5,6 +5,7 @@ import time
 import argparse
 import yaml, json
 from PIL import Image
+
 import matplotlib.pyplot as plt
 
 import torch
@@ -24,7 +25,7 @@ opts = yaml.safe_load(open('tracking/options.yaml','r'))
 
 def forward_samples(model, image, samples, out_layer='conv3'):
     model.eval()
-    extractor = RegionExtractor(image, samples, opts['img_size'], opts['padding'], opts['batch_test'])
+    extractor = RegionExtractor(image, samples, opts)
     for i, regions in enumerate(extractor):
         if opts['use_gpu']:
             regions = regions.cuda()
@@ -324,7 +325,7 @@ if __name__ == "__main__":
 
     # Save result
     res = {}
-    res['res'] = result_bb.round().tolist()
+    res['res'] = result_bb.tolist()
     res['type'] = 'rect'
     res['fps'] = fps
     json.dump(res, open(result_path, 'w'), indent=2)

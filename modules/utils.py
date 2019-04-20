@@ -26,7 +26,7 @@ def overlap_ratio(rect1, rect2):
     return iou
 
 
-def crop_image2(img, bbox, img_size=107, padding=16):
+def crop_image2(img, bbox, img_size=107, padding=16, flip=False, rotate_limit=0, blur_limit=0):
     x, y, w, h = np.array(bbox, dtype='float32')
 
     cx, cy = x + w/2, y + h/2
@@ -50,6 +50,22 @@ def crop_image2(img, bbox, img_size=107, padding=16):
                                  [0, 0, 1]], dtype=np.float32)
     matrices.append(scaling_matrix)
 
+    # Define flip matrix
+    if flip and np.random.binomial(1, 0.5):
+        flip_matrix = np.eye(3, dtype=np.float32)
+        flip_matrix[0, 0] = -1
+        matrices.append(flip_matrix)
+
+    # Define rotation matrix
+    if rotate_limit and np.random.binomial(1, 0.5):
+        angle = np.random.uniform(-rotate_limit, rotate_limit)
+        alpha = np.cos(np.deg2rad(angle))
+        beta = np.sin(np.deg2rad(angle))
+        rotation_matrix = np.asarray([[alpha, -beta, 0],
+                                      [beta, alpha, 0],
+                                      [0, 0, 1]], dtype=np.float32)
+        matrices.append(rotation_matrix)
+
     # Translation matrix to move patch center from origin
     revert_t_matrix = np.asarray([[1, 0, img_size / 2],
                                   [0, 1, img_size / 2],
@@ -66,6 +82,11 @@ def crop_image2(img, bbox, img_size=107, padding=16):
                                 matrix,
                                 (img_size, img_size),
                                 borderValue=128)
+
+    if blur_limit and np.random.binomial(1, 0.5):
+        blur_size = np.random.choice(np.arange(1, blur_limit + 1, 2))
+        patch = cv2.GaussianBlur(patch, (blur_size, blur_size), 0)
+
     return patch
 
 
