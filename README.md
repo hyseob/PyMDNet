@@ -8,11 +8,6 @@ by [Hyeonseob Nam](https://kr.linkedin.com/in/hyeonseob-nam/) and [Bohyung Han](
 - ImagNet-VID pretraining
 - Code refactoring
 
-## Results on OTB
-<img src="./figs/tb100-precision.png" width="400"> <img src="./figs/tb100-success.png" width="400">
-<img src="./figs/tb50-precision.png" width="400"> <img src="./figs/tb50-success.png" width="400">
-<img src="./figs/otb2013-precision.png" width="400"> <img src="./figs/otb2013-success.png" width="400">
-
 ## Introduction
 PyTorch implementation of MDNet, which runs at ~5fps with a single CPU core and a single GPU (GTX 1080 Ti).
 #### [[Project]](http://cvlab.postech.ac.kr/research/mdnet/) [[Paper]](https://arxiv.org/abs/1510.07945) [[Matlab code]](https://github.com/HyeonseobNam/MDNet)
@@ -26,7 +21,12 @@ If you're using this code for your research, please cite:
 	month = {June},
 	year = {2016}
 	}
- 
+
+## Results on OTB
+<img src="./figs/tb100-precision.png" width="400"> <img src="./figs/tb100-success.png" width="400">
+<img src="./figs/tb50-precision.png" width="400"> <img src="./figs/tb50-success.png" width="400">
+<img src="./figs/otb2013-precision.png" width="400"> <img src="./figs/otb2013-success.png" width="400">
+
 ## Prerequisites
 - python 3.6+
 - opencv 3.0+
