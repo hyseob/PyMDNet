@@ -8,7 +8,7 @@ by [Hyeonseob Nam](https://kr.linkedin.com/in/hyeonseob-nam/) and [Bohyung Han](
 - ImagNet-VID pretraining
 - Code refactoring
 
-## Results
+## Results on OTB
 <img src="./figs/tb100-precision.png" width="400"> <img src="./figs/tb100-success.png" width="400">
 <img src="./figs/tb50-precision.png" width="400"> <img src="./figs/tb50-success.png" width="400">
 <img src="./figs/otb2013-precision.png" width="400"> <img src="./figs/otb2013-success.png" width="400">
