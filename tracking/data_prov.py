@@ -9,12 +9,13 @@ from modules.utils import crop_image2
 
 
 class RegionExtractor():
-    def __init__(self, image, samples, crop_size, padding, batch_size):
+    def __init__(self, image, samples, opts):
         self.image = np.asarray(image)
         self.samples = samples
-        self.crop_size = crop_size
-        self.padding = padding
-        self.batch_size = batch_size
+
+        self.crop_size = opts['img_size']
+        self.padding = opts['padding']
+        self.batch_size = opts['batch_test']
 
         self.index = np.arange(len(samples))
         self.pointer = 0

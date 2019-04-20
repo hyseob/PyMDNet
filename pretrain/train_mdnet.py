@@ -1,7 +1,8 @@
-import sys
+import os, sys
 import pickle
 import yaml
 import time
+import argparse
 import numpy as np
 
 import torch
@@ -10,10 +11,8 @@ sys.path.insert(0,'.')
 from data_prov import RegionDataset
 from modules.model import MDNet, set_optimizer, BCELoss, Precision
 
-opts = yaml.safe_load(open('pretrain/options.yaml','r'))
 
-
-def train_mdnet():
+def train_mdnet(opts):
 
     # Init dataset
     with open(opts['data_path'], 'rb') as fp:
@@ -58,17 +57,21 @@ def train_mdnet():
             neg_score = model(neg_regions, k)
 
             loss = criterion(pos_score, neg_score)
-            model.zero_grad()
+
+            batch_accum = opts.get('batch_accum', 1)
+            if j % batch_accum == 0:
+                model.zero_grad()
             loss.backward()
-            if 'grad_clip' in opts:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), opts['grad_clip'])
-            optimizer.step()
+            if j % batch_accum == batch_accum - 1 or j == len(k_list) - 1:
+                if 'grad_clip' in opts:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), opts['grad_clip'])
+                optimizer.step()
 
             prec[k] = evaluator(pos_score, neg_score)
 
             toc = time.time()-tic
-            print('Iter {:2d} (Domain {:2d}), Loss {:.3f}, Precision {:.3f}, Time {:.3f}'
-                    .format(j, k, loss.item(), prec[k], toc))
+            print('Cycle {:2d}/{:2d}, Iter {:2d}/{:2d} (Domain {:2d}), Loss {:.3f}, Precision {:.3f}, Time {:.3f}'
+                    .format(i, opts['n_cycles'], j, len(k_list), k, loss.item(), prec[k], toc))
 
         print('Mean Precision: {:.3f}'.format(prec.mean()))
         print('Save model to {:s}'.format(opts['model_path']))
@@ -81,4 +84,9 @@ def train_mdnet():
 
 
 if __name__ == "__main__":
-    train_mdnet()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--dataset', default='imagenet', help='training dataset {vot, imagenet}')
+    args = parser.parse_args()
+
+    opts = yaml.safe_load(open('pretrain/options_{}.yaml'.format(args.dataset), 'r'))
+    train_mdnet(opts)

@@ -23,6 +23,10 @@ class RegionDataset(data.Dataset):
         self.crop_size = opts['img_size']
         self.padding = opts['padding']
 
+        self.flip = opts.get('flip', False)
+        self.rotate = opts.get('rotate', 0)
+        self.blur = opts.get('blur', 0)
+
         self.index = np.random.permutation(len(self.img_list))
         self.pointer = 0
 
@@ -67,7 +71,8 @@ class RegionDataset(data.Dataset):
     def extract_regions(self, image, samples):
         regions = np.zeros((len(samples), self.crop_size, self.crop_size, 3), dtype='uint8')
         for i, sample in enumerate(samples):
-            regions[i] = crop_image2(image, sample, self.crop_size, self.padding)
+            regions[i] = crop_image2(image, sample, self.crop_size, self.padding,
+                    self.flip, self.rotate, self.blur)
         regions = regions.transpose(0, 3, 1, 2)
         regions = regions.astype('float32') - 128.
         return regions

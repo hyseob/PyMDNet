@@ -18,9 +18,9 @@ for i, seq in enumerate(seq_list):
 
     if seq == 'vot2014/ball':
         img_list = img_list[1:]
-    
+
     assert len(img_list) == len(gt), "Lengths do not match!!"
-    
+
     if gt.shape[1] == 8:
         x_min = np.min(gt[:, [0, 2, 4, 6]], axis=1)[:, None]
         y_min = np.min(gt[:, [1, 3, 5, 7]], axis=1)[:, None]
