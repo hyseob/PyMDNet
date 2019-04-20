@@ -325,7 +325,7 @@ if __name__ == "__main__":
 
     # Save result
     res = {}
-    res['res'] = result_bb.tolist()
+    res['res'] = result_bb.round().tolist()
     res['type'] = 'rect'
     res['fps'] = fps
     json.dump(res, open(result_path, 'w'), indent=2)
