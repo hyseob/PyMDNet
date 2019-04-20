@@ -85,8 +85,7 @@ def train_mdnet(opts):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--dataset', default='imagenet',
-            help='training dataset {vot, imagenet}')
+    parser.add_argument('-d', '--dataset', default='imagenet', help='training dataset {vot, imagenet}')
     args = parser.parse_args()
 
     opts = yaml.safe_load(open('pretrain/options_{}.yaml'.format(args.dataset),'r'))
