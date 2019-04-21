@@ -23,6 +23,9 @@ If you're using this code for your research, please cite:
 	}
 
 ## Results on OTB
+- MDNet pretrained on **VOT-OTB** (VOT13,14,15 excluding OTB): [Google drive link](https://drive.google.com/open?id=1ZSCj1UEn4QhoRypgH28hVxSgWbI8q8Hl)
+- MDNet pretrained on **Imagenet-VID**: [Google drive link](https://drive.google.com/open?id=14lJGcumtBRmtpZhmgY1BsrbEQixfhIpP)
+
 <img src="./figs/tb100-precision.png" width="400"> <img src="./figs/tb100-success.png" width="400">
 <img src="./figs/tb50-precision.png" width="400"> <img src="./figs/tb50-success.png" width="400">
 <img src="./figs/otb2013-precision.png" width="400"> <img src="./figs/otb2013-success.png" width="400">
@@ -45,7 +48,7 @@ If you're using this code for your research, please cite:
  
 ### Pretraining
  - Download [VGG-M](http://www.vlfeat.org/matconvnet/models/imagenet-vgg-m.mat) (matconvnet model) and save as "models/imagenet-vgg-m.mat"
- - Pretraining on VOT (exclude OTB)
+ - Pretraining on VOT-OTB
    - Download [VOT](http://www.votchallenge.net/) datasets into "datasets/VOT/vot201x"
     ``` bash
      python pretrain/prepro_vot.py
