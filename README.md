@@ -23,8 +23,8 @@ If you're using this code for your research, please cite:
 	}
 
 ## Results on OTB
-- MDNet pretrained on **VOT-OTB** (VOT13,14,15 excluding OTB): [Google drive link](https://drive.google.com/open?id=1ZSCj1UEn4QhoRypgH28hVxSgWbI8q8Hl)
-- MDNet pretrained on **Imagenet-VID**: [Google drive link](https://drive.google.com/open?id=14lJGcumtBRmtpZhmgY1BsrbEQixfhIpP)
+- Raw results of MDNet pretrained on **VOT-OTB** (VOT13,14,15 excluding OTB): [Google drive link](https://drive.google.com/open?id=1ZSCj1UEn4QhoRypgH28hVxSgWbI8q8Hl)
+- Raw results of MDNet pretrained on **Imagenet-VID**: [Google drive link](https://drive.google.com/open?id=14lJGcumtBRmtpZhmgY1BsrbEQixfhIpP)
 
 <img src="./figs/tb100-precision.png" width="400"> <img src="./figs/tb100-success.png" width="400">
 <img src="./figs/tb50-precision.png" width="400"> <img src="./figs/tb50-success.png" width="400">
