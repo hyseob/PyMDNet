@@ -55,7 +55,7 @@ If you're using this code for your research, please cite:
      python pretrain/train_mdnet.py -d vot
     ```
  - Pretraining on ImageNet-VID
-   - Download ImageNet-VID dataset into "datasets/ILSVRC"
+   - Download [ImageNet-VID](http://bvisionweb1.cs.unc.edu/ilsvrc2015/download-videos-3j16.php#vid) dataset into "datasets/ILSVRC"
     ``` bash
      python pretrain/prepro_imagenet.py
      python pretrain/train_mdnet.py -d imagenet
