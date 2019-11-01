@@ -1,6 +1,6 @@
 # py-MDNet
 
-by [Hyeonseob Nam](https://kr.linkedin.com/in/hyeonseob-nam/) and [Bohyung Han](http://cvlab.postech.ac.kr/~bhhan/) at POSTECH
+by [Hyeonseob Nam](https://hyeonseobnam.github.io/) and [Bohyung Han](http://cvlab.postech.ac.kr/~bhhan/) at POSTECH
 
 **Update (April, 2019)**
 - Migration to python 3.6 & pyTorch 1.0
